@@ -154,7 +154,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
     }).join('\n\n');
     
     navigator.clipboard.writeText(content).then(() => {
-      toast.success('Copiado!');
+      toast.success('Todos os dados copiados para a área de transferência!');
     }).catch(() => {
       toast.error('Erro ao copiar dados');
     });
@@ -253,17 +253,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => {
-                  const content = groupedRecords.map(record => {
-                    return `${record.cidade} - ${record.ultimaAtualizacao}\n${record.ctrcs.join('\n')}`;
-                  }).join('\n\n');
-                  
-                  navigator.clipboard.writeText(content).then(() => {
-                    toast.success('Copiado!');
-                  }).catch(() => {
-                    toast.error('Erro ao copiar dados');
-                  });
-                }}
+                onClick={handleCopyAllData}
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar Tudo
@@ -272,30 +262,25 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
           </DialogHeader>
           
           <div className="overflow-auto max-h-[70vh]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Quantidade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupedRecords.length > 0 ? groupedRecords.map((record, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{record.cidade}</TableCell>
-                    <TableCell>{record.ultimaAtualizacao}</TableCell>
-                    <TableCell>{record.quantidade}</TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-gray-500">
-                      Nenhum registro encontrado
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            {groupedRecords.map((record, groupIndex) => (
+              <div key={groupIndex} className="mb-6 border-b pb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold text-lg">
+                    {record.cidade} - {record.ultimaAtualizacao}
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    Quantidade: {record.quantidade}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {record.ctrcs.map((ctrc, ctrcIndex) => (
+                    <div key={ctrcIndex} className="p-2 bg-gray-50 rounded text-sm">
+                      {ctrc}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
