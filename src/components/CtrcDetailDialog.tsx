@@ -36,7 +36,7 @@ const CtrcDetailDialog: React.FC<CtrcDetailDialogProps> = ({
   const handleCopyAll = () => {
     const content = `${cidade} - ${ultimaAtualizacao}\n${ctrcs.join('\n')}`;
     navigator.clipboard.writeText(content).then(() => {
-      toast.success('Dados copiados para a área de transferência!');
+      toast.success('Copiado!');
     }).catch(() => {
       toast.error('Erro ao copiar dados');
     });
