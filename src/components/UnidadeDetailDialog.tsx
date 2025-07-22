@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, Copy, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import CtrcDetailDialog from './CtrcDetailDialog';
 interface UnidadeDetailDialogProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<GroupedRecord | null>(null);
   const [sortField, setSortField] = useState<SortField>('ultimaAtualizacao');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [allCtrcDialogOpen, setAllCtrcDialogOpen] = useState(false);
   if (!rawData || !rawData.full) {
     return null;
   }
@@ -145,13 +147,49 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
     setSelectedGroup(group);
     setCtrcDialogOpen(true);
   };
+
+  const handleCopyAllData = () => {
+    const content = groupedRecords.map(record => {
+      return `${record.cidade} - ${record.ultimaAtualizacao}\n${record.ctrcs.join('\n')}`;
+    }).join('\n\n');
+    
+    navigator.clipboard.writeText(content).then(() => {
+      toast.success('Todos os dados copiados para a área de transferência!');
+    }).catch(() => {
+      toast.error('Erro ao copiar dados');
+    });
+  };
+
+  const handleVerTodos = () => {
+    setAllCtrcDialogOpen(true);
+  };
   return <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>
-              Detalhes - {unidade}
-              {codigo && ` - Código ${codigo}`}
+            <DialogTitle className="flex items-center justify-between">
+              <span>
+                Detalhes - {unidade}
+                {codigo && ` - Código ${codigo}`}
+              </span>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleCopyAllData}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar Tudo
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleVerTodos}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Ver Todos
+                </Button>
+              </div>
             </DialogTitle>
           </DialogHeader>
           
@@ -206,6 +244,46 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
       </Dialog>
 
       {selectedGroup && <CtrcDetailDialog isOpen={ctrcDialogOpen} onClose={() => setCtrcDialogOpen(false)} cidade={selectedGroup.cidade} ultimaAtualizacao={selectedGroup.ultimaAtualizacao} ctrcs={selectedGroup.ctrcs} />}
+      
+      <Dialog open={allCtrcDialogOpen} onOpenChange={setAllCtrcDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Todos os CTRCs - {unidade}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleCopyAllData}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar Tudo
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="overflow-auto max-h-[70vh]">
+            {groupedRecords.map((record, groupIndex) => (
+              <div key={groupIndex} className="mb-6 border-b pb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold text-lg">
+                    {record.cidade} - {record.ultimaAtualizacao}
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    Quantidade: {record.quantidade}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {record.ctrcs.map((ctrc, ctrcIndex) => (
+                    <div key={ctrcIndex} className="p-2 bg-gray-50 rounded text-sm">
+                      {ctrc}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>;
 };
 export default UnidadeDetailDialog;
