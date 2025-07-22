@@ -1,0 +1,139 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+}
+
+@layer components {
+  .percentage-badge {
+    @apply px-3 py-1 rounded-full shadow-sm font-semibold text-white;
+  }
+  
+  .percentage-badge-green {
+    @apply bg-gradient-to-r from-green-400 to-emerald-500;
+  }
+  
+  .percentage-badge-blue {
+    @apply bg-gradient-to-r from-blue-400 to-sky-500;
+  }
+  
+  .percentage-badge-indigo {
+    @apply bg-gradient-to-r from-indigo-400 to-purple-500;
+  }
+  
+  .percentage-badge-amber {
+    @apply bg-gradient-to-r from-amber-400 to-orange-500;
+  }
+  
+  .percentage-pill {
+    @apply px-2.5 py-1.5 rounded-md font-medium text-white shadow-sm;
+  }
+  
+  .card-percentage {
+    @apply text-xl font-bold px-4 py-1.5 text-white rounded-full shadow-sm;
+  }
+  
+  /* Novas classes para unidades e cidades */
+  .unidade-header {
+    @apply bg-blue-50 px-3 py-2 rounded-md flex justify-between items-center;
+  }
+  
+  .unidade-name {
+    @apply font-medium text-blue-800 flex items-center;
+  }
+  
+  .unidade-percentage {
+    @apply bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1 rounded-md font-medium;
+  }
+  
+  .city-item {
+    @apply flex justify-between items-center text-sm py-1.5 border-b border-dashed border-blue-100;
+  }
+  
+  .city-percentage {
+    @apply bg-gradient-to-r from-teal-500 to-emerald-600 text-white rounded-md text-sm font-medium px-2.5 py-1;
+  }
+  
+  /* Novas classes para informações de data */
+  .date-info {
+    @apply ml-4 mt-1 mb-2 text-xs text-amber-700;
+  }
+  
+  .date-count {
+    @apply font-medium text-amber-600;
+  }
+  
+  .date-value {
+    @apply text-amber-700 font-medium;
+  }
+  
+  /* Novas classes para dropdown de datas e CTRC's */
+  .date-dropdown {
+    @apply text-xs text-amber-700 px-2 py-1 bg-amber-50/40 rounded-sm cursor-pointer hover:bg-amber-50;
+  }
+  
+  .date-item {
+    @apply flex justify-between text-xs px-2 py-1.5 border-b border-amber-100 last:border-b-0;
+  }
+  
+  .ctrc-list {
+    @apply bg-white p-2 rounded-md border border-blue-100 shadow-sm;
+  }
+  
+  .ctrc-item {
+    @apply text-xs bg-blue-50 p-1 rounded border border-blue-100 inline-block m-0.5;
+  }
+}
