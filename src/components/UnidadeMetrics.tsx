@@ -91,8 +91,8 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
     const unidadeKey = keys[52];
     const ocorrenciaKey = "Codigo da Ultima Ocorrencia";
 
-    // Filtrar dados EXATAMENTE como os cards principais fazem
-    const filteredData = full.filter((item: any) => {
+    // Calcular a base total para porcentagem (todos os CTRCs da unidade com códigos selecionados)
+    const totalBaseData = full.filter((item: any) => {
       // Primeiro filtro: UF
       const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
 
@@ -108,29 +108,29 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
       return matchesUf && matchesUnidade && hasOcorrencia && codigoSelecionado;
     });
 
-    const totalUnidade = filteredData.length;
-    if (totalUnidade === 0) return null;
+    const totalBase = totalBaseData.length;
+    if (totalBase === 0) return null;
 
     if (codigo) {
-      // Para códigos específicos (1, 59, 82)
-      const codigoCount = filteredData.filter((item: any) => String(item[ocorrenciaKey]) === codigo).length;
-      const percentage = totalUnidade > 0 ? codigoCount / totalUnidade * 100 : 0;
+      // Para códigos específicos (1, 59, 82, 50)
+      const codigoCount = totalBaseData.filter((item: any) => String(item[ocorrenciaKey]) === codigo).length;
+      const percentage = totalBase > 0 ? codigoCount / totalBase * 100 : 0;
       return {
         unidade,
         count: codigoCount,
-        total: totalUnidade,
+        total: totalBase,
         percentage: percentage
       };
     } else {
       // Para projeção (entregues + em rota)
-      const entregues = filteredData.filter((item: any) => String(item[ocorrenciaKey]) === '1').length;
-      const emRota = filteredData.filter((item: any) => String(item[ocorrenciaKey]) === '59').length;
+      const entregues = totalBaseData.filter((item: any) => String(item[ocorrenciaKey]) === '1').length;
+      const emRota = totalBaseData.filter((item: any) => String(item[ocorrenciaKey]) === '59').length;
       const projecao = entregues + emRota;
-      const percentage = totalUnidade > 0 ? projecao / totalUnidade * 100 : 0;
+      const percentage = totalBase > 0 ? projecao / totalBase * 100 : 0;
       return {
         unidade,
         count: projecao,
-        total: totalUnidade,
+        total: totalBase,
         percentage: percentage
       };
     }
