@@ -123,6 +123,12 @@ const Index: React.FC = () => {
       total: number;
     }>;
   } | null>(null);
+
+  // Novo estado para dados de insucessos
+  const [insucessosData, setInsucessosData] = useState<{
+    count: number;
+    percentage: number;
+  } | null>(null);
   const processFileData = (data: ProcessedData, columnName: string) => {
     setIsLoading(true);
     setRawData(data);
@@ -142,6 +148,7 @@ const Index: React.FC = () => {
     processPlacaData(data.full);
     processOfendersData(data.full, columnName);
     processSemMovimentacaoData(data.full, columnName); // Nova função
+    processInsucessosData(data.full, columnName); // Nova função para insucessos
     if (meta.cityByCodeMap) {
       setCityByCodeMap(meta.cityByCodeMap);
       setFilteredCityData(meta.cityByCodeMap);
@@ -204,6 +211,33 @@ const Index: React.FC = () => {
     setSemMovimentacaoData({
       count: totalCount,
       bases
+    });
+  };
+
+  // Nova função para processar dados de insucessos
+  const processInsucessosData = (fullData: any[], columnName: string) => {
+    if (!fullData || fullData.length === 0) return;
+    
+    const ocorrenciaKey = columnName || "Codigo da Ultima Ocorrencia";
+    
+    // Códigos de insucesso especificados
+    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66'];
+    
+    let totalCount = 0;
+    const totalRegistros = fullData.length;
+    
+    for (const row of fullData) {
+      const codigo = String(row[ocorrenciaKey] || "");
+      if (insucessoCodes.includes(codigo)) {
+        totalCount++;
+      }
+    }
+    
+    const percentage = totalRegistros > 0 ? (totalCount / totalRegistros) * 100 : 0;
+    
+    setInsucessosData({
+      count: totalCount,
+      percentage: percentage
     });
   };
 
@@ -1080,6 +1114,26 @@ const Index: React.FC = () => {
       count: codigo82?.count || 0
     };
   }, [filteredResults, selectedCodes]);
+
+  const insucessosFilteredData = useMemo(() => {
+    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66'];
+    const insucessosItems = filteredResults.filter(item => insucessoCodes.includes(String(item.code)));
+    
+    let totalCount = 0;
+    let totalPercentage = 0;
+    
+    for (const item of insucessosItems) {
+      if (selectedCodes.includes(String(item.code))) {
+        totalCount += item.count;
+        totalPercentage += selectedCodes.length < filteredResults.length ? getRecalculatedPercentage(String(item.code)) : item.percentage;
+      }
+    }
+    
+    return {
+      count: totalCount,
+      percentage: totalPercentage
+    };
+  }, [filteredResults, selectedCodes]);
   return <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-6">
@@ -1323,6 +1377,27 @@ const Index: React.FC = () => {
                         <p className="text-xs text-gray-500 mt-2">Código 50 - Todas as bases</p>
                         {semMovimentacaoData && semMovimentacaoData.bases.length > 0}
                         <UnidadeMetrics unidades={selectedUnidades} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['50']} codigo="50" label="Sem Movimentação" />
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+                      <CardHeader className="bg-gradient-to-br from-red-50 to-rose-50 pb-3">
+                        <CardTitle className="text-lg font-semibold text-red-700">Insucessos</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="flex justify-between items-center">
+                          <div className="text-3xl font-bold text-red-600">
+                            {insucessosFilteredData.count}
+                          </div>
+                          <div className="text-xl font-semibold px-3 py-1 bg-gradient-to-r from-red-400 to-rose-500 text-white rounded-full shadow-sm">
+                            {insucessosFilteredData.percentage.toFixed(1)}%
+                          </div>
+                          <div className="bg-red-50 p-3 rounded-full">
+                            <AlertTriangle className="h-8 w-8 text-red-500" />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66</p>
+                        {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66']} label="Insucessos por Unidade:" />}
                       </CardContent>
                     </Card>
                   </div>
