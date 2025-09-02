@@ -56,6 +56,46 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
     const dataUltimaOcorrenciaKey = keys[93]; // Coluna CP (94) - Data da Ultima Ocorrencia
     const ctrcKey = keys[1]; // Coluna B (2) - Serie/Numero CTRC
 
+    // Para card "Insucessos", exibir por código ao invés de por cidade
+    if (codigo === 'insucessos') {
+      const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
+      
+      // Filtrar dados dos códigos de insucesso
+      const filteredData = full.filter((item: any) => {
+        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+        const matchesUnidade = item[unidadeKey] === unidade;
+        const hasOcorrencia = item[ocorrenciaKey];
+        const isInsucesso = insucessoCodes.includes(String(item[ocorrenciaKey]));
+        return matchesUf && matchesUnidade && hasOcorrencia && isInsucesso;
+      });
+
+      // Mapear para o formato necessário (usando código ao invés de cidade)
+      const records = filteredData.map((item: any) => ({
+        codigo: String(item[ocorrenciaKey]) || 'N/A',
+        ultimaAtualizacao: item[dataUltimaOcorrenciaKey] || 'N/A',
+        ctrc: item[ctrcKey] || 'N/A'
+      }));
+
+      // Agrupar por código e data
+      const groupedMap = new Map<string, any>();
+      records.forEach(record => {
+        const key = `${record.codigo}-${record.ultimaAtualizacao}`;
+        if (groupedMap.has(key)) {
+          const existing = groupedMap.get(key)!;
+          existing.quantidade += 1;
+          existing.ctrcs.push(record.ctrc);
+        } else {
+          groupedMap.set(key, {
+            cidade: record.codigo, // Usar código como "cidade" para compatibilidade
+            ultimaAtualizacao: record.ultimaAtualizacao,
+            quantidade: 1,
+            ctrcs: [record.ctrc]
+          });
+        }
+      });
+      return Array.from(groupedMap.values());
+    }
+
     // Filtrar dados da mesma forma que o UnidadeMetrics
     const filteredData = full.filter((item: any) => {
       const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
@@ -199,7 +239,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
                 <TableRow>
                   <TableHead>
                     <Button variant="ghost" onClick={() => handleSort('cidade')} className="h-auto p-0 font-medium hover:bg-transparent">
-                      Cidade
+                      {codigo === 'insucessos' ? 'Código' : 'Cidade'}
                       {renderSortIcon('cidade')}
                     </Button>
                   </TableHead>

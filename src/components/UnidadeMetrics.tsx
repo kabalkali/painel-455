@@ -91,6 +91,34 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
     const unidadeKey = keys[52];
     const ocorrenciaKey = "Codigo da Ultima Ocorrencia";
 
+    // Para card "Insucessos", somar todos os códigos de insucesso por unidade
+    if (codigo === 'insucessos') {
+      const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
+      
+      // Base total: todos os CTRCs da unidade (independente do código)
+      const totalGeralData = full.filter((item: any) => {
+        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+        const matchesUnidade = item[unidadeKey] === unidade;
+        const hasOcorrencia = item[ocorrenciaKey];
+        return matchesUf && matchesUnidade && hasOcorrencia;
+      });
+
+      // Quantidade específica dos códigos de insucesso
+      const insucessosCount = totalGeralData.filter((item: any) => 
+        insucessoCodes.includes(String(item[ocorrenciaKey]))
+      ).length;
+      
+      const totalGeral = totalGeralData.length;
+      const percentage = totalGeral > 0 ? insucessosCount / totalGeral * 100 : 0;
+      
+      return {
+        unidade,
+        count: insucessosCount,
+        total: totalGeral,
+        percentage: percentage
+      };
+    }
+
     // Para card "Sem Movimentação" (código 50), calcular porcentagem em relação ao total geral
     if (codigo === '50') {
       // Base total: todos os CTRCs da unidade (independente do código)

@@ -221,7 +221,7 @@ const Index: React.FC = () => {
     const ocorrenciaKey = columnName || "Codigo da Ultima Ocorrencia";
     
     // Códigos de insucesso especificados
-    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66'];
+    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
     
     let totalCount = 0;
     const totalRegistros = fullData.length;
@@ -1116,7 +1116,7 @@ const Index: React.FC = () => {
   }, [filteredResults, selectedCodes]);
 
   const insucessosFilteredData = useMemo(() => {
-    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66'];
+    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
     const insucessosItems = filteredResults.filter(item => insucessoCodes.includes(String(item.code)));
     
     let totalCount = 0;
@@ -1396,8 +1396,8 @@ const Index: React.FC = () => {
                             <AlertTriangle className="h-8 w-8 text-red-500" />
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66</p>
-                        {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66']} label="Insucessos por Unidade:" />}
+                        <p className="text-xs text-gray-500 mt-2">Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66, 33</p>
+                        {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66', '33']} codigo="insucessos" label="Insucessos por Unidade:" />}
                       </CardContent>
                     </Card>
                   </div>
