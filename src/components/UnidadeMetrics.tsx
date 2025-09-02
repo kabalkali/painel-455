@@ -10,6 +10,7 @@ interface UnidadeMetricsProps {
   selectedCodes: string[];
   codigo?: string;
   label?: string;
+  showTodayOnly?: boolean;
 }
 
 const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
@@ -19,7 +20,8 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
   selectedUnidades,
   selectedCodes,
   codigo,
-  label
+  label,
+  showTodayOnly = false
 }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUnidade, setSelectedUnidade] = useState<string>('');
@@ -94,9 +96,28 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
     // Para card "Insucessos", somar todos os códigos de insucesso por unidade
     if (codigo === 'insucessos') {
       const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
+      const dataUltimaOcorrenciaKey = keys[93]; // Coluna CP (94) - Data da Ultima Ocorrencia
       
-      // Base total: todos os CTRCs da unidade (independente do código)
-      const totalGeralData = full.filter((item: any) => {
+      // Obter data de hoje no formato DD/MM/YYYY
+      const today = new Date();
+      const todayString = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+
+      // Filtrar por data primeiro
+      const filteredByDate = full.filter((item: any) => {
+        const itemDate = item[dataUltimaOcorrenciaKey];
+        if (!itemDate) return false;
+        
+        if (showTodayOnly) {
+          // Mostrar apenas os de hoje
+          return itemDate === todayString;
+        } else {
+          // Mostrar apenas os que NÃO são de hoje (ontem e anteriores)
+          return itemDate !== todayString;
+        }
+      });
+      
+      // Base total: todos os CTRCs da unidade filtrados por data
+      const totalGeralData = filteredByDate.filter((item: any) => {
         const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
         const matchesUnidade = item[unidadeKey] === unidade;
         const hasOcorrencia = item[ocorrenciaKey];

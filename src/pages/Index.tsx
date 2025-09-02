@@ -129,6 +129,7 @@ const Index: React.FC = () => {
     count: number;
     percentage: number;
   } | null>(null);
+  const [showTodayInsucessos, setShowTodayInsucessos] = useState(false);
   const processFileData = (data: ProcessedData, columnName: string) => {
     setIsLoading(true);
     setRawData(data);
@@ -1116,24 +1117,64 @@ const Index: React.FC = () => {
   }, [filteredResults, selectedCodes]);
 
   const insucessosFilteredData = useMemo(() => {
-    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
-    const insucessosItems = filteredResults.filter(item => insucessoCodes.includes(String(item.code)));
-    
-    let totalCount = 0;
-    let totalPercentage = 0;
-    
-    for (const item of insucessosItems) {
-      if (selectedCodes.includes(String(item.code))) {
-        totalCount += item.count;
-        totalPercentage += selectedCodes.length < filteredResults.length ? getRecalculatedPercentage(String(item.code)) : item.percentage;
-      }
+    if (!rawData || !rawData.full) {
+      return { count: 0, percentage: 0 };
     }
+
+    const insucessoCodes = ['26', '18', '46', '23', '25', '27', '28', '65', '66', '33'];
+    const { full } = rawData;
+    const firstRow = full[0];
+    const keys = Object.keys(firstRow);
+    const dataUltimaOcorrenciaKey = keys[93]; // Coluna CP (94) - Data da Ultima Ocorrencia
+    const ocorrenciaKey = "Codigo da Ultima Ocorrencia";
+    const ufKey = keys[50];
+    const unidadeKey = keys[52];
+
+    // Obter data de hoje no formato DD/MM/YYYY
+    const today = new Date();
+    const todayString = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+
+    // Filtrar dados com base no checkbox de data
+    const filteredByDate = full.filter((item: any) => {
+      const itemDate = item[dataUltimaOcorrenciaKey];
+      if (!itemDate) return false;
+      
+      if (showTodayInsucessos) {
+        // Mostrar apenas os de hoje
+        return itemDate === todayString;
+      } else {
+        // Mostrar apenas os que NÃO são de hoje (ontem e anteriores)
+        return itemDate !== todayString;
+      }
+    });
+
+    // Aplicar filtros de UF e Unidade
+    const filteredData = filteredByDate.filter((item: any) => {
+      const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+      const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(item[unidadeKey]);
+      const hasOcorrencia = item[ocorrenciaKey];
+      const isInsucesso = insucessoCodes.includes(String(item[ocorrenciaKey]));
+      
+      return matchesUf && matchesUnidade && hasOcorrencia && isInsucesso;
+    });
+
+    // Calcular total de registros para a porcentagem (todos os registros filtrados por data, UF e unidade)
+    const totalRegistros = filteredByDate.filter((item: any) => {
+      const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+      const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(item[unidadeKey]);
+      const hasOcorrencia = item[ocorrenciaKey];
+      
+      return matchesUf && matchesUnidade && hasOcorrencia;
+    }).length;
+
+    const insucessosCount = filteredData.length;
+    const percentage = totalRegistros > 0 ? (insucessosCount / totalRegistros) * 100 : 0;
     
     return {
-      count: totalCount,
-      percentage: totalPercentage
+      count: insucessosCount,
+      percentage: percentage
     };
-  }, [filteredResults, selectedCodes]);
+  }, [rawData, selectedUf, selectedUnidades, showTodayInsucessos]);
   return <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-6">
@@ -1385,6 +1426,19 @@ const Index: React.FC = () => {
                         <CardTitle className="text-lg font-semibold text-red-700">Insucessos</CardTitle>
                       </CardHeader>
                       <CardContent className="pt-4">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Checkbox 
+                            id="today-insucessos" 
+                            checked={showTodayInsucessos}
+                            onCheckedChange={(checked) => setShowTodayInsucessos(checked === true)}
+                          />
+                          <label 
+                            htmlFor="today-insucessos" 
+                            className="text-sm font-medium text-gray-700 cursor-pointer"
+                          >
+                            Mostrar apenas do dia de hoje
+                          </label>
+                        </div>
                         <div className="flex justify-between items-center">
                           <div className="text-3xl font-bold text-red-600">
                             {insucessosFilteredData.count}
@@ -1396,8 +1450,10 @@ const Index: React.FC = () => {
                             <AlertTriangle className="h-8 w-8 text-red-500" />
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66, 33</p>
-                        {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66', '33']} codigo="insucessos" label="Insucessos por Unidade:" />}
+                        <p className="text-xs text-gray-500 mt-2">
+                          Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66, 33 - {showTodayInsucessos ? 'Apenas hoje' : 'Exceto hoje'}
+                        </p>
+                        {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66', '33']} codigo="insucessos" label="Insucessos por Unidade:" showTodayOnly={showTodayInsucessos} />}
                       </CardContent>
                     </Card>
                   </div>
