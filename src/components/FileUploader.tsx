@@ -78,9 +78,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
   };
 
   const processFile = async (file: File) => {
+    console.log('🔄 Iniciando processamento do arquivo:', file.name, 'Tamanho:', file.size);
     const fileExt = file.name.split('.').pop()?.toLowerCase();
+    console.log('📄 Extensão detectada:', fileExt);
     
     if (fileExt !== 'csv' && fileExt !== 'xlsx' && fileExt !== 'sswweb') {
+      console.error('❌ Formato inválido:', fileExt);
       toast({
         title: "Formato inválido",
         description: "Por favor, envie apenas arquivos CSV, XLSX ou SSWWEB.",
@@ -89,6 +92,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       return;
     }
 
+    console.log('✅ Formato válido, iniciando processamento...');
     setIsLoading(true);
     setUploadProgress(10); // Inicia o progresso
     setProcessingText(`Analisando ${file.name}...`);
@@ -99,6 +103,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       const signal = abortControllerRef.current.signal;
 
       if (fileExt === 'csv' || fileExt === 'sswweb') {
+        console.log('📊 Processando arquivo CSV/SSWWEB com delimiter:', fileExt === 'sswweb' ? ';' : ',');
         // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
@@ -115,6 +120,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           skipEmptyLines: true,
           delimiter: fileExt === 'sswweb' ? ';' : ',',
           chunk: async (results, parser) => {
+            console.log('📦 Chunk recebido:', results.data.length, 'linhas');
             // Pausa o parser para processar o lote atual
             parser.pause();
             
@@ -124,6 +130,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
             }
             
             if (firstChunk) {
+              console.log('🎯 Primeiro chunk - detectando estrutura...');
+              console.log('📋 Headers encontrados:', results.meta.fields);
+              console.log('🔍 Primeiras linhas:', results.data.slice(0, 2));
               firstChunk = false;
               // Guardar amostra de dados para validação
               sampleRows.push(...results.data.slice(0, 10));
@@ -156,8 +165,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
             parser.resume();
           },
           complete: async () => {
+            console.log('🏁 Parsing completo! Total de linhas:', totalRows);
             // Processar o último lote, se houver
             if (currentBatch.length > 0 && !signal.aborted) {
+              console.log('🔄 Processando último lote:', currentBatch.length, 'linhas');
               try {
                 await processAndValidateData(currentBatch, headers, signal);
               } catch (error) {
@@ -168,6 +179,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
             }
             
             if (!signal.aborted) {
+              console.log('✅ Processamento finalizado com sucesso!');
               setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
               setUploadProgress(100);
               setTimeout(() => setIsLoading(false), 500);
@@ -248,10 +260,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
 
   // Nova função para processar e validar dados com worker otimizado
   const processAndValidateData = async (data: any[], headers: string[], signal: AbortSignal) => {
+    console.log('🔍 Iniciando validação de dados:', data.length, 'registros');
+    console.log('📝 Headers disponíveis:', headers);
+    
     if (signal.aborted) throw new Error('Processing aborted');
     
     // Verifica se os dados estão vazios
     if (!data || data.length === 0) {
+      console.error('❌ Dados vazios!');
       toast({
         title: "Arquivo vazio",
         description: "O arquivo não contém dados para processar.",
@@ -264,14 +280,19 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     
     // Tenta encontrar a coluna pelo nome, se não encontrar usa a coluna 33
     const firstRow = data[0];
+    console.log('🎯 Primeira linha de exemplo:', Object.keys(firstRow).slice(0, 5));
     let columnName = targetColumn;
     
     if (!firstRow.hasOwnProperty(targetColumn)) {
+      console.log('⚠️ Coluna alvo não encontrada:', targetColumn);
       // Se não encontrou a coluna pelo nome, tenta usar o índice 33
       const columnKeys = Object.keys(firstRow);
+      console.log('🔢 Total de colunas:', columnKeys.length);
       if (columnKeys.length >= 33) {
         columnName = columnKeys[32]; // índice 32 corresponde à coluna 33 (0-based index)
+        console.log('✅ Usando coluna 33:', columnName);
       } else {
+        console.error('❌ Arquivo não tem 33 colunas:', columnKeys.length);
         toast({
           title: "Erro na estrutura do arquivo",
           description: "Não foi possível encontrar a coluna 33 no arquivo.",
@@ -279,11 +300,15 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         });
         return;
       }
+    } else {
+      console.log('✅ Coluna alvo encontrada:', targetColumn);
     }
     
     try {
+      console.log('🔄 Iniciando processamento com worker...');
       // Usar o worker otimizado
       const results: WorkerResult = await processDataInWorker(data, columnName);
+      console.log('✅ Worker finalizou:', results);
       
       if (signal.aborted) throw new Error('Processing aborted');
       
@@ -310,7 +335,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         }
       };
       
+      console.log('🚀 Chamando onFileUpload callback...');
       onFileUpload(processedData, columnName);
+      console.log('✅ Callback executado com sucesso!');
     } catch (error) {
       if (error instanceof Error && error.message === 'Processing aborted') {
         throw error; // Re-throw para ser tratado acima
