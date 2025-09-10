@@ -80,10 +80,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
   const processFile = async (file: File) => {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     
-    if (fileExt !== 'csv' && fileExt !== 'xlsx' && fileExt !== 'sswweb') {
+    if (fileExt !== 'csv' && fileExt !== 'xlsx') {
       toast({
         title: "Formato inválido",
-        description: "Por favor, envie apenas arquivos CSV, XLSX ou SSWWEB.",
+        description: "Por favor, envie apenas arquivos CSV ou XLSX.",
         variant: "destructive",
       });
       return;
@@ -98,7 +98,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      if (fileExt === 'csv' || fileExt === 'sswweb') {
+      if (fileExt === 'csv') {
         // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
@@ -113,7 +113,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          delimiter: fileExt === 'sswweb' ? ';' : ',',
           chunk: async (results, parser) => {
             // Pausa o parser para processar o lote atual
             parser.pause();
@@ -345,7 +344,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           <input
             id="file-upload"
             type="file"
-            accept=".csv,.xlsx,.sswweb"
+            accept=".csv,.xlsx"
             className="hidden"
             onChange={(e) => {
               const files = e.target.files;
@@ -382,7 +381,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                 Faça upload do seu arquivo
               </h3>
               <p className="text-sm text-gray-500 text-center max-w-md mb-4">
-                Arraste e solte seu arquivo CSV, XLSX ou SSWWEB aqui, ou clique para selecionar
+                Arraste e solte seu arquivo CSV ou XLSX aqui, ou clique para selecionar
               </p>
               <Button variant="default" className="bg-blue-500 hover:bg-blue-600">
                 Selecionar Arquivo
