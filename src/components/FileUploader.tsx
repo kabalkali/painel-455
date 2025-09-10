@@ -105,117 +105,128 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
 
       if (fileExt === 'csv' || fileExt === 'sswweb') {
         console.log('📊 Processando arquivo CSV/SSWWEB...', 'Extensão:', fileExt);
-        // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
         let headers: string[] = [];
         let firstChunk = true;
         let rowsProcessed = 0;
         const sampleRows: any[] = []; // Apenas para detectar estrutura
-        const batchSize = 10000; // Tamanho do lote para processamento de CSV
+        const batchSize = 10000;
         let currentBatch: any[] = [];
         let totalRows = 0;
         
-        // Detectar delimiter automaticamente lendo uma pequena amostra
-        const detectDelimiter = (text: string) => {
-          const semicolonCount = (text.match(/;/g) || []).length;
-          const commaCount = (text.match(/,/g) || []).length;
-          console.log('🔍 Detectando delimiter - Vírgulas:', commaCount, 'Ponto e vírgulas:', semicolonCount);
-          console.log('📝 Amostra do texto:', text.substring(0, 200));
-          return semicolonCount > commaCount ? ';' : ',';
-        };
-
-        // Ler uma pequena amostra para detectar delimiter
-        const reader = new FileReader();
-        const sampleSize = Math.min(1024, file.size); // Primeiros 1KB
-        const blob = file.slice(0, sampleSize);
-        
-        reader.onload = (e) => {
-          const sampleText = e.target?.result as string;
-          const delimiter = detectDelimiter(sampleText);
-          console.log('📊 Processando arquivo CSV/SSWWEB com delimiter detectado:', delimiter);
+        // Para arquivos SSWWEB, converter para CSV primeiro
+        if (fileExt === 'sswweb') {
+          console.log('🔄 Convertendo SSWWEB para CSV...');
+          setProcessingText('Convertendo SSWWEB para CSV...');
           
-          console.log('🚀 Iniciando Papa.parse...');
-          Papa.parse(file, {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const sswwebContent = e.target?.result as string;
+              console.log('📝 Conteúdo SSWWEB lido, tamanho:', sswwebContent.length);
+              
+              // Converter delimitadores de ; para ,
+              const csvContent = sswwebContent.replace(/;/g, ',');
+              console.log('✅ Conversão concluída');
+              
+              // Criar um blob CSV e processar
+              const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+              const csvFile = new File([csvBlob], file.name.replace('.sswweb', '.csv'), { type: 'text/csv' });
+              
+              console.log('🚀 Processando arquivo convertido como CSV...');
+              processCSVFile(csvFile);
+              
+            } catch (error) {
+              console.error('❌ Erro na conversão SSWWEB:', error);
+              toast({
+                title: "Erro na conversão",
+                description: "Erro ao converter arquivo SSWWEB para CSV",
+                variant: "destructive",
+              });
+              setIsLoading(false);
+            }
+          };
+          
+          reader.readAsText(file);
+        } else {
+          // Processar CSV diretamente
+          processCSVFile(file);
+        }
+        
+        function processCSVFile(csvFile: File) {
+          console.log('🚀 Iniciando processamento CSV...');
+          setProcessingText(`Processando ${csvFile.name}...`);
+          
+          Papa.parse(csvFile, {
             header: true,
             skipEmptyLines: true,
-            delimiter: delimiter,
+            delimiter: ',', // Sempre usar vírgula agora
             chunk: async (results, parser) => {
               console.log('📦 Chunk recebido:', results.data.length, 'linhas');
-              console.log('🔍 Dados do chunk:', results.data.slice(0, 2));
-              console.log('📊 Meta dados:', results.meta);
-              
-              // Pausa o parser para processar o lote atual
               parser.pause();
-            
-            if (signal.aborted) {
-              parser.abort();
-              return;
-            }
-            
-            if (firstChunk) {
-              console.log('🎯 Primeiro chunk - detectando estrutura...');
-              console.log('📋 Headers encontrados:', results.meta.fields);
-              console.log('🔍 Primeiras linhas:', results.data.slice(0, 2));
-              firstChunk = false;
-              // Guardar amostra de dados para validação
-              sampleRows.push(...results.data.slice(0, 10));
-              headers = results.meta.fields || [];
-            }
-            
-            // Adicionar dados ao lote atual
-            currentBatch.push(...results.data);
-            rowsProcessed += results.data.length;
-            totalRows += results.data.length;
-            
-            // Atualizar progresso
-            setUploadProgress(Math.min(30, 15 + (rowsProcessed / batchSize) * 15));
-            setProcessingText(`Carregando dados: ${totalRows.toLocaleString()} registros`);
-            
-            // Se o lote atingir o tamanho máximo, processar
-            if (currentBatch.length >= batchSize) {
-              try {
-                await processAndValidateData(currentBatch, headers, signal);
-                currentBatch = []; // Limpar o lote
-              } catch (error) {
-                if (error instanceof Error && error.message === 'Processing aborted') {
-                  parser.abort();
-                  return;
-                }
-                throw error;
+              
+              if (signal.aborted) {
+                parser.abort();
+                return;
               }
-            }
-            
-            parser.resume();
-          },
-          complete: async () => {
-            console.log('🏁 Parsing completo! Total de linhas:', totalRows);
-            // Processar o último lote, se houver
-            if (currentBatch.length > 0 && !signal.aborted) {
-              console.log('🔄 Processando último lote:', currentBatch.length, 'linhas');
-              try {
-                await processAndValidateData(currentBatch, headers, signal);
-              } catch (error) {
-                if (!(error instanceof Error && error.message === 'Processing aborted')) {
+              
+              if (firstChunk) {
+                console.log('🎯 Primeiro chunk - detectando estrutura...');
+                console.log('📋 Headers encontrados:', results.meta.fields);
+                console.log('🔍 Primeiras linhas:', results.data.slice(0, 2));
+                firstChunk = false;
+                sampleRows.push(...results.data.slice(0, 10));
+                headers = results.meta.fields || [];
+              }
+              
+              currentBatch.push(...results.data);
+              rowsProcessed += results.data.length;
+              totalRows += results.data.length;
+              
+              setUploadProgress(Math.min(80, 20 + (rowsProcessed / batchSize) * 60));
+              setProcessingText(`Carregando dados: ${totalRows.toLocaleString()} registros`);
+              
+              if (currentBatch.length >= batchSize) {
+                try {
+                  await processAndValidateData(currentBatch, headers, signal);
+                  currentBatch = [];
+                } catch (error) {
+                  if (error instanceof Error && error.message === 'Processing aborted') {
+                    parser.abort();
+                    return;
+                  }
                   throw error;
                 }
               }
+              
+              parser.resume();
+            },
+            complete: async () => {
+              console.log('🏁 Parsing completo! Total de linhas:', totalRows);
+              if (currentBatch.length > 0 && !signal.aborted) {
+                console.log('🔄 Processando último lote:', currentBatch.length, 'linhas');
+                try {
+                  await processAndValidateData(currentBatch, headers, signal);
+                } catch (error) {
+                  if (!(error instanceof Error && error.message === 'Processing aborted')) {
+                    throw error;
+                  }
+                }
+              }
+              
+              if (!signal.aborted) {
+                console.log('✅ Processamento finalizado com sucesso!');
+                setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
+                setUploadProgress(100);
+                setTimeout(() => setIsLoading(false), 500);
+              }
+            },
+            error: (error) => {
+              throw new Error(`Erro ao processar CSV: ${error}`);
             }
-            
-            if (!signal.aborted) {
-              console.log('✅ Processamento finalizado com sucesso!');
-              setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
-              setUploadProgress(100);
-              setTimeout(() => setIsLoading(false), 500);
-            }
-          },
-          error: (error) => {
-            throw new Error(`Erro ao processar CSV: ${error}`);
-          }
           });
-        };
-        
-        reader.readAsText(blob);
+        }
       } else if (fileExt === 'xlsx') {
         setUploadProgress(20);
         
