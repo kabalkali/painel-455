@@ -103,7 +103,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       const signal = abortControllerRef.current.signal;
 
       if (fileExt === 'csv' || fileExt === 'sswweb') {
-        console.log('📊 Processando arquivo CSV/SSWWEB com delimiter:', fileExt === 'sswweb' ? ';' : ',');
+        console.log('📊 Processando arquivo CSV/SSWWEB...');
         // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
@@ -115,11 +115,30 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         let currentBatch: any[] = [];
         let totalRows = 0;
         
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          delimiter: fileExt === 'sswweb' ? ';' : ',',
-          chunk: async (results, parser) => {
+        // Detectar delimiter automaticamente lendo uma pequena amostra
+        const detectDelimiter = (text: string) => {
+          const semicolonCount = (text.match(/;/g) || []).length;
+          const commaCount = (text.match(/,/g) || []).length;
+          console.log('🔍 Detectando delimiter - Vírgulas:', commaCount, 'Ponto e vírgulas:', semicolonCount);
+          console.log('📝 Amostra do texto:', text.substring(0, 200));
+          return semicolonCount > commaCount ? ';' : ',';
+        };
+
+        // Ler uma pequena amostra para detectar delimiter
+        const reader = new FileReader();
+        const sampleSize = Math.min(1024, file.size); // Primeiros 1KB
+        const blob = file.slice(0, sampleSize);
+        
+        reader.onload = (e) => {
+          const sampleText = e.target?.result as string;
+          const delimiter = detectDelimiter(sampleText);
+          console.log('📊 Processando arquivo CSV/SSWWEB com delimiter detectado:', delimiter);
+          
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            delimiter: delimiter,
+            chunk: async (results, parser) => {
             console.log('📦 Chunk recebido:', results.data.length, 'linhas');
             // Pausa o parser para processar o lote atual
             parser.pause();
@@ -188,7 +207,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           error: (error) => {
             throw new Error(`Erro ao processar CSV: ${error}`);
           }
-        });
+          });
+        };
+        
+        reader.readAsText(blob);
       } else if (fileExt === 'xlsx') {
         setUploadProgress(20);
         
@@ -278,27 +300,56 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     
     setProcessingText(`Processando ${data.length.toLocaleString()} registros...`);
     
-    // Tenta encontrar a coluna pelo nome, se não encontrar usa a coluna 33
+    // Tenta encontrar a coluna pelo nome, se não encontrar busca outras variações
     const firstRow = data[0];
     console.log('🎯 Primeira linha de exemplo:', Object.keys(firstRow).slice(0, 5));
+    console.log('🔍 Todas as colunas:', Object.keys(firstRow));
     let columnName = targetColumn;
     
     if (!firstRow.hasOwnProperty(targetColumn)) {
       console.log('⚠️ Coluna alvo não encontrada:', targetColumn);
-      // Se não encontrou a coluna pelo nome, tenta usar o índice 33
+      
       const columnKeys = Object.keys(firstRow);
       console.log('🔢 Total de colunas:', columnKeys.length);
-      if (columnKeys.length >= 33) {
+      
+      // Buscar por variações do nome da coluna
+      const possibleColumns = [
+        'Codigo da Ultima Ocorrencia',
+        'Código da Última Ocorrência', 
+        'Codigo da ultima ocorrencia',
+        'código da última ocorrência'
+      ];
+      
+      let foundColumn = null;
+      for (const possibleCol of possibleColumns) {
+        if (columnKeys.includes(possibleCol)) {
+          foundColumn = possibleCol;
+          break;
+        }
+      }
+      
+      if (foundColumn) {
+        columnName = foundColumn;
+        console.log('✅ Coluna encontrada com variação:', columnName);
+      } else if (columnKeys.length >= 33) {
+        // Se não encontrou pelo nome, tenta usar o índice 33
         columnName = columnKeys[32]; // índice 32 corresponde à coluna 33 (0-based index)
-        console.log('✅ Usando coluna 33:', columnName);
+        console.log('✅ Usando coluna 33 por índice:', columnName);
       } else {
-        console.error('❌ Arquivo não tem 33 colunas:', columnKeys.length);
-        toast({
-          title: "Erro na estrutura do arquivo",
-          description: "Não foi possível encontrar a coluna 33 no arquivo.",
-          variant: "destructive",
-        });
-        return;
+        // Se tem menos de 33 colunas, busca por palavras-chave na última coluna disponível
+        const lastColumn = columnKeys[columnKeys.length - 1];
+        if (lastColumn && (lastColumn.toLowerCase().includes('ocorrencia') || lastColumn.toLowerCase().includes('codigo'))) {
+          columnName = lastColumn;
+          console.log('✅ Usando última coluna que parece ser a correta:', columnName);
+        } else {
+          console.error('❌ Não foi possível identificar a coluna de código de ocorrência');
+          toast({
+            title: "Estrutura do arquivo",
+            description: `Arquivo tem ${columnKeys.length} colunas. Não foi possível identificar a coluna "Código da Última Ocorrência".`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
     } else {
       console.log('✅ Coluna alvo encontrada:', targetColumn);
