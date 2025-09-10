@@ -77,6 +77,87 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     }
   };
 
+  // Função para processar CSV (tanto nativos quanto convertidos de SSWWEB)
+  const processCSVContent = async (csvFile: File, signal: AbortSignal) => {
+    console.log('🚀 Iniciando processamento CSV...');
+    setProcessingText(`Processando ${csvFile.name}...`);
+    
+    let headers: string[] = [];
+    let firstChunk = true;
+    let rowsProcessed = 0;
+    const batchSize = 10000;
+    let currentBatch: any[] = [];
+    let totalRows = 0;
+    
+    Papa.parse(csvFile, {
+      header: true,
+      skipEmptyLines: true,
+      delimiter: ',',
+      chunk: async (results, parser) => {
+        console.log('📦 Chunk recebido:', results.data.length, 'linhas');
+        parser.pause();
+        
+        if (signal.aborted) {
+          parser.abort();
+          return;
+        }
+        
+        if (firstChunk) {
+          console.log('🎯 Primeiro chunk - detectando estrutura...');
+          console.log('📋 Headers encontrados:', results.meta.fields);
+          console.log('🔍 Primeiras linhas:', results.data.slice(0, 2));
+          firstChunk = false;
+          headers = results.meta.fields || [];
+        }
+        
+        currentBatch.push(...results.data);
+        rowsProcessed += results.data.length;
+        totalRows += results.data.length;
+        
+        setUploadProgress(Math.min(80, 20 + (rowsProcessed / batchSize) * 60));
+        setProcessingText(`Carregando dados: ${totalRows.toLocaleString()} registros`);
+        
+        if (currentBatch.length >= batchSize) {
+          try {
+            await processAndValidateData(currentBatch, headers, signal);
+            currentBatch = [];
+          } catch (error) {
+            if (error instanceof Error && error.message === 'Processing aborted') {
+              parser.abort();
+              return;
+            }
+            throw error;
+          }
+        }
+        
+        parser.resume();
+      },
+      complete: async () => {
+        console.log('🏁 Parsing completo! Total de linhas:', totalRows);
+        if (currentBatch.length > 0 && !signal.aborted) {
+          console.log('🔄 Processando último lote:', currentBatch.length, 'linhas');
+          try {
+            await processAndValidateData(currentBatch, headers, signal);
+          } catch (error) {
+            if (!(error instanceof Error && error.message === 'Processing aborted')) {
+              throw error;
+            }
+          }
+        }
+        
+        if (!signal.aborted) {
+          console.log('✅ Processamento finalizado com sucesso!');
+          setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
+          setUploadProgress(100);
+          setTimeout(() => setIsLoading(false), 500);
+        }
+      },
+      error: (error) => {
+        throw new Error(`Erro ao processar CSV: ${error}`);
+      }
+    });
+  };
+
   const processFile = async (file: File) => {
     console.log('🔄 Iniciando processamento do arquivo:', file.name, 'Tamanho:', file.size);
     const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -107,21 +188,13 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         console.log('📊 Processando arquivo CSV/SSWWEB...', 'Extensão:', fileExt);
         setUploadProgress(15);
         
-        let headers: string[] = [];
-        let firstChunk = true;
-        let rowsProcessed = 0;
-        const sampleRows: any[] = []; // Apenas para detectar estrutura
-        const batchSize = 10000;
-        let currentBatch: any[] = [];
-        let totalRows = 0;
-        
         // Para arquivos SSWWEB, converter para CSV primeiro
         if (fileExt === 'sswweb') {
           console.log('🔄 Convertendo SSWWEB para CSV...');
           setProcessingText('Convertendo SSWWEB para CSV...');
           
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
             try {
               const sswwebContent = e.target?.result as string;
               console.log('📝 Conteúdo SSWWEB lido, tamanho:', sswwebContent.length);
@@ -135,7 +208,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
               const csvFile = new File([csvBlob], file.name.replace('.sswweb', '.csv'), { type: 'text/csv' });
               
               console.log('🚀 Processando arquivo convertido como CSV...');
-              processCSVFile(csvFile);
+              // Processar o arquivo convertido usando o mesmo fluxo do CSV
+              await processCSVContent(csvFile, signal);
               
             } catch (error) {
               console.error('❌ Erro na conversão SSWWEB:', error);
@@ -151,82 +225,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           reader.readAsText(file);
         } else {
           // Processar CSV diretamente
-          processCSVFile(file);
+          await processCSVContent(file, signal);
         }
         
-        function processCSVFile(csvFile: File) {
-          console.log('🚀 Iniciando processamento CSV...');
-          setProcessingText(`Processando ${csvFile.name}...`);
-          
-          Papa.parse(csvFile, {
-            header: true,
-            skipEmptyLines: true,
-            delimiter: ',', // Sempre usar vírgula agora
-            chunk: async (results, parser) => {
-              console.log('📦 Chunk recebido:', results.data.length, 'linhas');
-              parser.pause();
-              
-              if (signal.aborted) {
-                parser.abort();
-                return;
-              }
-              
-              if (firstChunk) {
-                console.log('🎯 Primeiro chunk - detectando estrutura...');
-                console.log('📋 Headers encontrados:', results.meta.fields);
-                console.log('🔍 Primeiras linhas:', results.data.slice(0, 2));
-                firstChunk = false;
-                sampleRows.push(...results.data.slice(0, 10));
-                headers = results.meta.fields || [];
-              }
-              
-              currentBatch.push(...results.data);
-              rowsProcessed += results.data.length;
-              totalRows += results.data.length;
-              
-              setUploadProgress(Math.min(80, 20 + (rowsProcessed / batchSize) * 60));
-              setProcessingText(`Carregando dados: ${totalRows.toLocaleString()} registros`);
-              
-              if (currentBatch.length >= batchSize) {
-                try {
-                  await processAndValidateData(currentBatch, headers, signal);
-                  currentBatch = [];
-                } catch (error) {
-                  if (error instanceof Error && error.message === 'Processing aborted') {
-                    parser.abort();
-                    return;
-                  }
-                  throw error;
-                }
-              }
-              
-              parser.resume();
-            },
-            complete: async () => {
-              console.log('🏁 Parsing completo! Total de linhas:', totalRows);
-              if (currentBatch.length > 0 && !signal.aborted) {
-                console.log('🔄 Processando último lote:', currentBatch.length, 'linhas');
-                try {
-                  await processAndValidateData(currentBatch, headers, signal);
-                } catch (error) {
-                  if (!(error instanceof Error && error.message === 'Processing aborted')) {
-                    throw error;
-                  }
-                }
-              }
-              
-              if (!signal.aborted) {
-                console.log('✅ Processamento finalizado com sucesso!');
-                setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
-                setUploadProgress(100);
-                setTimeout(() => setIsLoading(false), 500);
-              }
-            },
-            error: (error) => {
-              throw new Error(`Erro ao processar CSV: ${error}`);
-            }
-          });
-        }
       } else if (fileExt === 'xlsx') {
         setUploadProgress(20);
         
