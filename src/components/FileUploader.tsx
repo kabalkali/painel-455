@@ -93,6 +93,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     }
 
     console.log('✅ Formato válido, iniciando processamento...');
+    console.log('🎯 Tipo de arquivo detectado:', fileExt === 'sswweb' ? 'SSWWEB' : fileExt === 'csv' ? 'CSV' : 'XLSX');
     setIsLoading(true);
     setUploadProgress(10); // Inicia o progresso
     setProcessingText(`Analisando ${file.name}...`);
@@ -103,7 +104,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       const signal = abortControllerRef.current.signal;
 
       if (fileExt === 'csv' || fileExt === 'sswweb') {
-        console.log('📊 Processando arquivo CSV/SSWWEB...');
+        console.log('📊 Processando arquivo CSV/SSWWEB...', 'Extensão:', fileExt);
         // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
@@ -134,14 +135,18 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           const delimiter = detectDelimiter(sampleText);
           console.log('📊 Processando arquivo CSV/SSWWEB com delimiter detectado:', delimiter);
           
+          console.log('🚀 Iniciando Papa.parse...');
           Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
             delimiter: delimiter,
             chunk: async (results, parser) => {
-            console.log('📦 Chunk recebido:', results.data.length, 'linhas');
-            // Pausa o parser para processar o lote atual
-            parser.pause();
+              console.log('📦 Chunk recebido:', results.data.length, 'linhas');
+              console.log('🔍 Dados do chunk:', results.data.slice(0, 2));
+              console.log('📊 Meta dados:', results.meta);
+              
+              // Pausa o parser para processar o lote atual
+              parser.pause();
             
             if (signal.aborted) {
               parser.abort();
