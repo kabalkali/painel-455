@@ -131,6 +131,8 @@ const Index: React.FC = () => {
   } | null>(null);
   const [showTodayInsucessos, setShowTodayInsucessos] = useState(false);
   const processFileData = (data: ProcessedData, columnName: string) => {
+    console.log('🎉 processFileData chamado!', { dataLength: data.full?.length, columnName });
+    console.log('📊 Meta dados recebidos:', data.meta);
     setIsLoading(true);
     setRawData(data);
     const {
@@ -145,10 +147,15 @@ const Index: React.FC = () => {
     setUnidadesReceptoras(Array.from(allUnidades).sort());
     const unidadeCodes = mapUnidadeCodes(data.sample, columnName);
     setUnidadeCodesMap(unidadeCodes);
+    console.log('🔄 Processando códigos de ocorrências...');
     processCodigoOcorrencias(meta.frequencyMap, meta.totalCount);
+    console.log('🔄 Processando dados de placa...');
     processPlacaData(data.full);
+    console.log('🔄 Processando dados de ofensores...');
     processOfendersData(data.full, columnName);
+    console.log('🔄 Processando dados sem movimentação...');
     processSemMovimentacaoData(data.full, columnName); // Nova função
+    console.log('🔄 Processando dados de insucessos...');
     processInsucessosData(data.full, columnName); // Nova função para insucessos
     if (meta.cityByCodeMap) {
       setCityByCodeMap(meta.cityByCodeMap);
@@ -159,6 +166,7 @@ const Index: React.FC = () => {
     processUnidadeByCityMap(data.full);
     setUploadCollapsed(true);
     setIsLoading(false);
+    console.log('✅ processFileData finalizado com sucesso!');
   };
 
   // Nova função para processar dados de código 50
