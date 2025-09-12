@@ -288,7 +288,7 @@ const Index: React.FC = () => {
       if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
       
       // Obter prazo esperado para a cidade
-      const prazoEsperado = getPrazoByCidade(cidade);
+      const prazoEsperado = getPrazoByCidade(cidade, unidade);
       if (prazoEsperado === null) continue;
       
       // Calcular diferença de dias entre previsão e último manifesto

@@ -194,8 +194,8 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
         
         if (!cidade || !previsaoEntrega || !dataUltimoManifesto) return false;
         
-        // Obter prazo esperado para a cidade
-        const prazoEsperado = getPrazoByCidade(cidade);
+        // Obter prazo esperado para a cidade e unidade
+        const prazoEsperado = getPrazoByCidade(cidade, unidade);
         if (prazoEsperado === null) return false;
         
         // Calcular diferença de dias entre previsão e último manifesto
