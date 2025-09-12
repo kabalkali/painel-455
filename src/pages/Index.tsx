@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFormattedCodeDescription } from '@/utils/codeMapping';
 import { getDriverName } from '@/utils/driversData';
+import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import UnidadeMetrics from '@/components/UnidadeMetrics';
 interface ResultData {
   code: string | number;
@@ -130,6 +131,17 @@ const Index: React.FC = () => {
     percentage: number;
   } | null>(null);
   const [showTodayInsucessos, setShowTodayInsucessos] = useState(false);
+
+  // Novo estado para dados de sem prazo
+  const [semPrazoData, setSemPrazoData] = useState<{
+    count: number;
+    percentage: number;
+    unidades: Array<{
+      unidade: string;
+      uf: string;
+      total: number;
+    }>;
+  } | null>(null);
   const processFileData = (data: ProcessedData, columnName: string) => {
     setIsLoading(true);
     setRawData(data);
@@ -150,6 +162,7 @@ const Index: React.FC = () => {
     processOfendersData(data.full, columnName);
     processSemMovimentacaoData(data.full, columnName); // Nova função
     processInsucessosData(data.full, columnName); // Nova função para insucessos
+    processSemPrazoData(data.full, columnName); // Nova função para sem prazo
     if (meta.cityByCodeMap) {
       setCityByCodeMap(meta.cityByCodeMap);
       setFilteredCityData(meta.cityByCodeMap);
@@ -239,6 +252,88 @@ const Index: React.FC = () => {
     setInsucessosData({
       count: totalCount,
       percentage: percentage
+    });
+  };
+
+  // Nova função para processar dados de sem prazo
+  const processSemPrazoData = (fullData: any[], columnName: string) => {
+    if (!fullData || fullData.length === 0) return;
+    
+    const firstRow = fullData[0];
+    const keys = Object.keys(firstRow);
+    
+    // Identificar as colunas necessárias
+    const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
+    const unidadeKey = keys[52]; // Coluna BA (53) - Unidade Receptora
+    const ufKey = keys[50]; // UF
+    const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
+    const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
+    
+    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) return;
+    
+    const basesMap = new Map<string, {
+      uf: string;
+      total: number;
+    }>();
+    let totalCount = 0;
+    const totalRegistros = fullData.length;
+    
+    for (const row of fullData) {
+      const cidade = String(row[cidadeKey] || "").trim();
+      const unidade = String(row[unidadeKey] || "").trim();
+      const uf = String(row[ufKey] || "").trim();
+      const previsaoEntrega = row[previsaoEntregaKey];
+      const dataUltimoManifesto = row[dataUltimoManifestoKey];
+      
+      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
+      
+      // Obter prazo esperado para a cidade
+      const prazoEsperado = getPrazoByCidade(cidade);
+      if (prazoEsperado === null) continue;
+      
+      // Calcular diferença de dias entre previsão e último manifesto
+      const previsaoDate = new Date(previsaoEntrega);
+      const manifestoDate = new Date(dataUltimoManifesto);
+      
+      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
+      
+      const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Incluir apenas se a diferença for menor que o prazo estabelecido (chegou sem prazo ideal)
+      if (diferencaDias < prazoEsperado) {
+        totalCount++;
+        const key = `${unidade}_${uf}`;
+        if (basesMap.has(key)) {
+          const existing = basesMap.get(key)!;
+          basesMap.set(key, {
+            ...existing,
+            total: existing.total + 1
+          });
+        } else {
+          basesMap.set(key, {
+            uf,
+            total: 1
+          });
+        }
+      }
+    }
+    
+    // Converter para array ordenado
+    const unidades = Array.from(basesMap.entries()).map(([key, data]) => {
+      const unidade = key.split('_')[0];
+      return {
+        unidade,
+        uf: data.uf,
+        total: data.total
+      };
+    }).sort((a, b) => b.total - a.total);
+    
+    const percentage = totalRegistros > 0 ? (totalCount / totalRegistros) * 100 : 0;
+    
+    setSemPrazoData({
+      count: totalCount,
+      percentage: percentage,
+      unidades
     });
   };
 
@@ -1454,6 +1549,27 @@ const Index: React.FC = () => {
                           Códigos 26, 18, 46, 23, 25, 27, 28, 65, 66, 33 - {showTodayInsucessos ? 'Apenas hoje' : 'Exceto hoje'}
                         </p>
                         {rawData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={['26', '18', '46', '23', '25', '27', '28', '65', '66', '33']} codigo="insucessos" label="Insucessos por Unidade:" showTodayOnly={showTodayInsucessos} />}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+                      <CardHeader className="bg-gradient-to-br from-purple-50 to-violet-50 pb-3">
+                        <CardTitle className="text-lg font-semibold text-purple-700">Sem Prazo</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="flex justify-between items-center">
+                          <div className="text-3xl font-bold text-purple-600">
+                            {semPrazoData?.count || 0}
+                          </div>
+                          <div className="text-xl font-semibold px-3 py-1 bg-gradient-to-r from-purple-400 to-violet-500 text-white rounded-full shadow-sm">
+                            {semPrazoData ? semPrazoData.percentage.toFixed(1) : 0}%
+                          </div>
+                          <div className="bg-purple-50 p-3 rounded-full">
+                            <Clock className="h-8 w-8 text-purple-500" />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Chegou sem prazo ideal para entrega</p>
+                        {semPrazoData && <UnidadeMetrics unidades={unidadesReceptoras} rawData={rawData} selectedUf={selectedUf} selectedUnidades={selectedUnidades} selectedCodes={[]} codigo="semPrazo" label="Sem Prazo" />}
                       </CardContent>
                     </Card>
                   </div>

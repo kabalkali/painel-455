@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { ArrowUp, ArrowDown, Copy, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import CtrcDetailDialog from './CtrcDetailDialog';
 interface UnidadeDetailDialogProps {
   isOpen: boolean;
@@ -87,6 +88,66 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
         } else {
           groupedMap.set(key, {
             cidade: record.codigo, // Usar código como "cidade" para compatibilidade
+            ultimaAtualizacao: record.ultimaAtualizacao,
+            quantidade: 1,
+            ctrcs: [record.ctrc]
+          });
+        }
+      });
+      return Array.from(groupedMap.values());
+    }
+
+    // Para card "Sem Prazo", exibir por código como unidade de medida
+    if (codigo === 'semPrazo') {
+      const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
+      const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
+      const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
+      const ctrcKey = keys[1]; // Coluna B (2) - Serie/Numero CTRC
+      
+      // Filtrar dados que estão sem prazo
+      const filteredData = full.filter((item: any) => {
+        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+        const matchesUnidade = item[unidadeKey] === unidade;
+        const cidade = String(item[cidadeKey] || "").trim();
+        const previsaoEntrega = item[previsaoEntregaKey];
+        const dataUltimoManifesto = item[dataUltimoManifestoKey];
+        
+        if (!matchesUf || !matchesUnidade || !cidade || !previsaoEntrega || !dataUltimoManifesto) return false;
+        
+        // Obter prazo esperado para a cidade
+        const prazoEsperado = getPrazoByCidade(cidade);
+        if (prazoEsperado === null) return false;
+        
+        // Calcular diferença de dias entre previsão e último manifesto
+        const previsaoDate = new Date(previsaoEntrega);
+        const manifestoDate = new Date(dataUltimoManifesto);
+        
+        if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) return false;
+        
+        const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Incluir apenas se a diferença for menor que o prazo estabelecido
+        return diferencaDias < prazoEsperado;
+      });
+
+      // Mapear para o formato necessário
+      const records = filteredData.map((item: any) => ({
+        codigo: item[ctrcKey] || 'N/A',
+        ultimaAtualizacao: item[dataUltimoManifestoKey] || 'N/A',
+        ctrc: item[ctrcKey] || 'N/A'
+      }));
+
+      // Agrupar por código e data do último manifesto
+      const groupedMap = new Map<string, any>();
+      records.forEach(record => {
+        const key = `${record.codigo}-${record.ultimaAtualizacao}`;
+        if (groupedMap.has(key)) {
+          const existing = groupedMap.get(key)!;
+          existing.quantidade += 1;
+          existing.ctrcs.push(record.ctrc);
+        } else {
+          groupedMap.set(key, {
+            cidade: record.codigo, // Usar código CTRC como "cidade" para compatibilidade
             ultimaAtualizacao: record.ultimaAtualizacao,
             quantidade: 1,
             ctrcs: [record.ctrc]
@@ -239,7 +300,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
                 <TableRow>
                   <TableHead>
                     <Button variant="ghost" onClick={() => handleSort('cidade')} className="h-auto p-0 font-medium hover:bg-transparent">
-                      {codigo === 'insucessos' ? 'Código' : 'Cidade'}
+                      {codigo === 'insucessos' ? 'Código' : codigo === 'semPrazo' ? 'Código' : 'Cidade'}
                       {renderSortIcon('cidade')}
                     </Button>
                   </TableHead>

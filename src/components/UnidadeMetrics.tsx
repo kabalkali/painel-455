@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import UnidadeDetailDialog from './UnidadeDetailDialog';
 
 interface UnidadeMetricsProps {
@@ -54,6 +55,11 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
         if (percentage <= 1.0) return 'bg-yellow-500';
         return 'bg-red-500';
       
+      case 'semPrazo':
+        if (percentage <= 2.0) return 'bg-green-500';
+        if (percentage <= 5.0) return 'bg-yellow-500';
+        return 'bg-red-500';
+      
       default:
         return 'bg-blue-500'; // Fallback color
     }
@@ -79,6 +85,9 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
     }
     if (codigo === '82') {
       return 'emPiso';
+    }
+    if (codigo === 'semPrazo') {
+      return 'semPrazo';
     }
     return 'default';
   };
@@ -159,6 +168,54 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
       return {
         unidade,
         count: codigo50Count,
+        total: totalGeral,
+        percentage: percentage
+      };
+    }
+
+    // Para card "Sem Prazo", calcular CTRCs que chegaram sem prazo ideal
+    if (codigo === 'semPrazo') {
+      const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
+      const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
+      const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
+      
+      // Base total: todos os CTRCs da unidade (independente do código)
+      const totalGeralData = full.filter((item: any) => {
+        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+        const matchesUnidade = item[unidadeKey] === unidade;
+        return matchesUf && matchesUnidade;
+      });
+
+      // Quantidade específica dos CTRCs sem prazo
+      const semPrazoCount = totalGeralData.filter((item: any) => {
+        const cidade = String(item[cidadeKey] || "").trim();
+        const previsaoEntrega = item[previsaoEntregaKey];
+        const dataUltimoManifesto = item[dataUltimoManifestoKey];
+        
+        if (!cidade || !previsaoEntrega || !dataUltimoManifesto) return false;
+        
+        // Obter prazo esperado para a cidade
+        const prazoEsperado = getPrazoByCidade(cidade);
+        if (prazoEsperado === null) return false;
+        
+        // Calcular diferença de dias entre previsão e último manifesto
+        const previsaoDate = new Date(previsaoEntrega);
+        const manifestoDate = new Date(dataUltimoManifesto);
+        
+        if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) return false;
+        
+        const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Incluir apenas se a diferença for menor que o prazo estabelecido
+        return diferencaDias < prazoEsperado;
+      }).length;
+      
+      const totalGeral = totalGeralData.length;
+      const percentage = totalGeral > 0 ? semPrazoCount / totalGeral * 100 : 0;
+      
+      return {
+        unidade,
+        count: semPrazoCount,
         total: totalGeral,
         percentage: percentage
       };
