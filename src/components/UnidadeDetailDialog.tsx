@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowUp, ArrowDown, Copy, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
+import { parseFlexibleDate } from '@/utils/date';
 import CtrcDetailDialog from './CtrcDetailDialog';
 interface UnidadeDetailDialogProps {
   isOpen: boolean;
@@ -118,11 +119,10 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
         const prazoEsperado = getPrazoByCidade(cidade, unidade);
         if (prazoEsperado === null) return false;
         
-        // Calcular diferença de dias entre previsão e último manifesto
-        const previsaoDate = new Date(previsaoEntrega);
-        const manifestoDate = new Date(dataUltimoManifesto);
+        const previsaoDate = parseFlexibleDate(previsaoEntrega);
+        const manifestoDate = parseFlexibleDate(dataUltimoManifesto);
         
-        if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) return false;
+        if (!previsaoDate || !manifestoDate) return false;
         
         const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
         

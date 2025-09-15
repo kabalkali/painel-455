@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
+import { parseFlexibleDate } from '@/utils/date';
 import UnidadeDetailDialog from './UnidadeDetailDialog';
 
 interface UnidadeMetricsProps {
@@ -199,10 +200,10 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
         if (prazoEsperado === null) return false;
         
         // Calcular diferença de dias entre previsão e último manifesto
-        const previsaoDate = new Date(previsaoEntrega);
-        const manifestoDate = new Date(dataUltimoManifesto);
+        const previsaoDate = parseFlexibleDate(previsaoEntrega);
+        const manifestoDate = parseFlexibleDate(dataUltimoManifesto);
         
-        if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) return false;
+        if (!previsaoDate || !manifestoDate) return false;
         
         const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
         
