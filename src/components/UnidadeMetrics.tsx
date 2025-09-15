@@ -28,7 +28,11 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUnidade, setSelectedUnidade] = useState<string>('');
 
-  if (!rawData || selectedUnidades.includes('todas') || !selectedCodes || selectedCodes.length === 0) {
+  // Códigos especiais que não dependem de selectedCodes
+  const codigosEspeciais = ['semPrazo', 'insucessos', '50'];
+  const isCodigoEspecial = codigo && codigosEspeciais.includes(codigo);
+  
+  if (!rawData || selectedUnidades.includes('todas') || (!isCodigoEspecial && (!selectedCodes || selectedCodes.length === 0))) {
     return null;
   }
 
