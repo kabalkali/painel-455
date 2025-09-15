@@ -130,18 +130,12 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
       const records = filteredData.map((item: any) => {
         const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
         const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
-        const cidade = item[cidadeEntregaKey] || 'N/A';
-        const unidadeReceptora = item[unidadeReceptoraKey] || unidade;
 
         let prazoCalculado = 'Dados inválidos';
-        let diasCalculados = 0;
-        let isAtrasado = false;
 
         if (previsaoDate && manifestoDate) {
           const delta = differenceInCalendarDays(previsaoDate, manifestoDate); // CV - CI
           const abs = Math.abs(delta);
-          diasCalculados = abs;
-          
           if (delta === 0) {
             prazoCalculado = 'no dia';
           } else if (delta > 0) {
@@ -149,24 +143,12 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
           } else {
             prazoCalculado = `${abs} dias depois`;
           }
-
-          // Buscar prazo ideal da cidade no banco de dados
-          const prazoIdeal = getPrazoByCidade(cidade, unidadeReceptora);
-          if (prazoIdeal !== null) {
-            // Se chegou com menos dias que o prazo ideal, está atrasado
-            // Para "dias antes", comparamos diasCalculados < prazoIdeal
-            // Para "dias depois", sempre considera atrasado
-            if (delta <= 0 || diasCalculados < prazoIdeal) {
-              isAtrasado = true;
-            }
-          }
         }
 
         return {
           prazo: prazoCalculado,
-          cidade,
+          cidade: item[cidadeEntregaKey] || 'N/A',
           ctrc: item[ctrcKeyResolved] || 'N/A',
-          isAtrasado,
         };
       });
 
@@ -178,17 +160,12 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
           const existing = groupedMap.get(key)!;
           existing.quantidade += 1;
           existing.ctrcs.push(record.ctrc);
-          // Se algum registro está atrasado, marcar o grupo como atrasado
-          if (record.isAtrasado) {
-            existing.isAtrasado = true;
-          }
         } else {
           groupedMap.set(key, {
             cidade: record.prazo, // Exibir prazo na primeira coluna
             ultimaAtualizacao: record.cidade, // Exibir cidade na segunda coluna
             quantidade: 1,
             ctrcs: [record.ctrc],
-            isAtrasado: record.isAtrasado,
           });
         }
       });
@@ -359,13 +336,10 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupedRecords.length > 0 ? groupedRecords.map((record, index) => <TableRow 
-                    key={index} 
-                    className={record.isAtrasado ? 'bg-red-50 border-red-200' : ''}
-                  >
-                      <TableCell className={record.isAtrasado ? 'text-red-700 font-semibold' : ''}>{record.cidade}</TableCell>
-                      <TableCell className={record.isAtrasado ? 'text-red-700 font-semibold' : ''}>{record.ultimaAtualizacao}</TableCell>
-                      <TableCell className={record.isAtrasado ? 'text-red-700 font-semibold' : ''}>{record.quantidade}</TableCell>
+                {groupedRecords.length > 0 ? groupedRecords.map((record, index) => <TableRow key={index}>
+                      <TableCell>{record.cidade}</TableCell>
+                      <TableCell>{record.ultimaAtualizacao}</TableCell>
+                      <TableCell>{record.quantidade}</TableCell>
                       <TableCell>
                         <Button variant="outline" size="sm" onClick={() => handleVerCtrcs(record)} className="bg-blue-500 hover:bg-blue-400 text-gray-50">
                           Ver CTRC's
