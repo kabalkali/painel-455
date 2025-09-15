@@ -51,13 +51,13 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
     const firstRow = full[0];
     const keys = Object.keys(firstRow);
 
-    // Identificar as colunas necessárias
-    const ufKey = keys[50]; // Coluna UF (51)
-    const unidadeKey = keys[52]; // Coluna Unidade (53)
+    // Identificar as colunas necessárias (padrão)
+    const ufKey = keys[50]; // fallback
+    const unidadeKey = keys[52]; // fallback
     const ocorrenciaKey = "Codigo da Ultima Ocorrencia";
-    const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
-    const dataUltimaOcorrenciaKey = keys[93]; // Coluna CP (94) - Data da Ultima Ocorrencia
-    const ctrcKey = keys[1]; // Coluna B (2) - Serie/Numero CTRC
+    const cidadeKey = keys[49]; // fallback
+    const dataUltimaOcorrenciaKey = keys[93]; // fallback
+    const ctrcKey = keys[1]; // fallback
 
     // Para card "Insucessos", exibir por código ao invés de por cidade
     if (codigo === 'insucessos') {
@@ -101,42 +101,60 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
 
     // Para card "Sem Prazo", agrupar por prazo calculado (CV-CI) e cidade
     if (codigo === 'semPrazo') {
-      const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
-      const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
-      const ctrcKey = keys[1]; // Coluna B (2) - Serie/Numero CTRC
-      
+      // Resolver colunas por nome (robusto a mudanças de ordem)
+      const normalize = (s: string) => s?.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const findKey = (...fragments: string[]) => {
+        return keys.find((k) => {
+          const nk = normalize(k);
+          return fragments.every((f) => nk.includes(normalize(f)));
+        });
+      };
+
+      const previsaoEntregaKey = findKey('previsao', 'entrega') || keys[97]; // CV
+      const dataUltimoManifestoKey = findKey('data', 'ultimo', 'manifesto') || keys[85]; // CI
+      const cidadeEntregaKey = findKey('cidade', 'entrega') || keys[49]; // AX
+      const unidadeReceptoraKey = findKey('unidade', 'receptora') || keys[52]; // BA
+      const ufKeyResolved = findKey('uf') || keys[50];
+      const ctrcKeyResolved = ctrcKey;
+
       // Filtrar todos os dados da unidade
       const filteredData = full.filter((item: any) => {
-        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
-        const matchesUnidade = item[unidadeKey] === unidade;
+        const matchesUf = selectedUf === 'todas' || item[ufKeyResolved] === selectedUf;
+        const matchesUnidade = item[unidadeReceptoraKey] === unidade;
         const previsaoEntrega = item[previsaoEntregaKey];
         const dataUltimoManifesto = item[dataUltimoManifestoKey];
-        
         return matchesUf && matchesUnidade && previsaoEntrega && dataUltimoManifesto;
       });
 
-      // Mapear e calcular prazo (CV - CI) em dias
+      // Mapear e calcular prazo (CV - CI) em dias com rótulo "antes/depois/no dia"
       const records = filteredData.map((item: any) => {
         const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
         const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
-        
+
         let prazoCalculado = 'Dados inválidos';
-        
+
         if (previsaoDate && manifestoDate) {
-          const diferencaDias = differenceInCalendarDays(previsaoDate, manifestoDate);
-          prazoCalculado = `${diferencaDias} dias`;
+          const delta = differenceInCalendarDays(previsaoDate, manifestoDate); // CV - CI
+          const abs = Math.abs(delta);
+          if (delta === 0) {
+            prazoCalculado = 'no dia';
+          } else if (delta > 0) {
+            prazoCalculado = `${abs} dias antes`;
+          } else {
+            prazoCalculado = `${abs} dias depois`;
+          }
         }
-        
+
         return {
           prazo: prazoCalculado,
-          cidade: item[cidadeKey] || 'N/A',
-          ctrc: item[ctrcKey] || 'N/A'
+          cidade: item[cidadeEntregaKey] || 'N/A',
+          ctrc: item[ctrcKeyResolved] || 'N/A',
         };
       });
 
       // Agrupar por prazo e cidade
       const groupedMap = new Map<string, any>();
-      records.forEach(record => {
+      records.forEach((record) => {
         const key = `${record.prazo}-${record.cidade}`;
         if (groupedMap.has(key)) {
           const existing = groupedMap.get(key)!;
@@ -144,14 +162,14 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
           existing.ctrcs.push(record.ctrc);
         } else {
           groupedMap.set(key, {
-            cidade: record.prazo, // Usar prazo no lugar de "cidade" para mostrar na primeira coluna
-            ultimaAtualizacao: record.cidade, // Usar cidade no lugar de "ultima atualização"
+            cidade: record.prazo, // Exibir prazo na primeira coluna
+            ultimaAtualizacao: record.cidade, // Exibir cidade na segunda coluna
             quantidade: 1,
-            ctrcs: [record.ctrc]
+            ctrcs: [record.ctrc],
           });
         }
       });
-      
+
       return Array.from(groupedMap.values());
     }
 
