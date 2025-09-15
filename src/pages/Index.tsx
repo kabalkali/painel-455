@@ -295,6 +295,10 @@ const Index: React.FC = () => {
       uf: string;
       total: number;
     }>();
+    const delayedBasesMap = new Map<string, {
+      uf: string;
+      total: number;
+    }>();
     let totalCount = 0;
     let validRecords = 0;
     let recordsWithDeadline = 0;
@@ -354,25 +358,37 @@ const Index: React.FC = () => {
         console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias > prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
       }
       
-    // Contar sempre para o total
-    const key = `${unidade}_${uf}`;
-    if (basesMap.has(key)) {
-      const existing = basesMap.get(key)!;
-      basesMap.set(key, {
-        ...existing,
-        total: existing.total + 1
-      });
-    } else {
-      basesMap.set(key, {
-        uf,
-        total: 1
-      });
-    }
-    
-    // Incluir para contagem apenas se a diferença for maior que o prazo estabelecido (chegou sem prazo ideal)
-    if (diferencaDias > prazoEsperado) {
-      totalCount++;
-    }
+      // Contar todos os registros válidos com prazo encontrado para o total geral
+      const key = `${unidade}_${uf}`;
+      if (basesMap.has(key)) {
+        const existing = basesMap.get(key)!;
+        basesMap.set(key, {
+          ...existing,
+          total: existing.total + 1
+        });
+      } else {
+        basesMap.set(key, {
+          uf,
+          total: 1
+        });
+      }
+      
+      // Incluir para contagem de atrasados apenas se a diferença for maior que o prazo estabelecido
+      if (diferencaDias > prazoEsperado) {
+        totalCount++;
+        if (delayedBasesMap.has(key)) {
+          const existing = delayedBasesMap.get(key)!;
+          delayedBasesMap.set(key, {
+            ...existing,
+            total: existing.total + 1
+          });
+        } else {
+          delayedBasesMap.set(key, {
+            uf,
+            total: 1
+          });
+        }
+      }
     }
     
     console.log(`📈 Estatísticas finais:`);
@@ -384,8 +400,8 @@ const Index: React.FC = () => {
     
     console.log('🏢 Contagem por unidades:', Array.from(basesMap.entries()));
     
-    // Converter para array ordenado
-    const unidades = Array.from(basesMap.entries()).map(([key, data]) => {
+    // Converter para array ordenado (apenas os que têm atrasos para mostrar na lista)
+    const unidades = Array.from(delayedBasesMap.entries()).map(([key, data]) => {
       const unidade = key.split('_')[0];
       return {
         unidade,
@@ -404,7 +420,7 @@ const Index: React.FC = () => {
     console.log(`📊 Unidades processadas:`, unidades);
     
     setSemPrazoData({
-      count: totalValidRecords, // Mostrar total de registros válidos no card principal
+      count: recordsWithDeadline, // Total de registros válidos com prazo encontrado
       percentage: percentage,
       unidades
     });
