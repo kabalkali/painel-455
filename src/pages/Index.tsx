@@ -420,7 +420,7 @@ const Index: React.FC = () => {
     console.log(`📊 Unidades processadas:`, unidades);
     
     setSemPrazoData({
-      count: recordsWithDeadline, // Total de registros válidos com prazo encontrado
+      count: totalCount, // Total de pedidos atrasados apenas
       percentage: percentage,
       unidades
     });
