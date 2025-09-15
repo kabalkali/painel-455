@@ -257,10 +257,20 @@ const Index: React.FC = () => {
 
   // Nova função para processar dados de sem prazo
   const processSemPrazoData = (fullData: any[], columnName: string) => {
-    if (!fullData || fullData.length === 0) return;
+    console.log('🔄 Iniciando processamento Sem Prazo...');
+    
+    if (!fullData || fullData.length === 0) {
+      console.log('❌ Nenhum dado disponível');
+      return;
+    }
+    
+    console.log(`📊 Total de registros: ${fullData.length}`);
     
     const firstRow = fullData[0];
     const keys = Object.keys(firstRow);
+    
+    console.log(`📋 Total de colunas: ${keys.length}`);
+    console.log(`🔍 Primeiras colunas:`, keys.slice(0, 10));
     
     // Identificar as colunas necessárias
     const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
@@ -269,35 +279,69 @@ const Index: React.FC = () => {
     const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
     const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
     
-    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) return;
+    console.log(`🏷️ Colunas identificadas:`);
+    console.log(`   - Cidade (49): ${cidadeKey}`);
+    console.log(`   - Unidade (52): ${unidadeKey}`);
+    console.log(`   - UF (50): ${ufKey}`);
+    console.log(`   - Previsão Entrega (97): ${previsaoEntregaKey}`);
+    console.log(`   - Data Último Manifesto (85): ${dataUltimoManifestoKey}`);
+    
+    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) {
+      console.log('❌ Colunas necessárias não encontradas');
+      return;
+    }
     
     const basesMap = new Map<string, {
       uf: string;
       total: number;
     }>();
     let totalCount = 0;
+    let validRecords = 0;
+    let recordsWithDeadline = 0;
+    let recordsWithoutDeadline = 0;
+    let invalidDates = 0;
     const totalRegistros = fullData.length;
     
-    for (const row of fullData) {
+    for (let i = 0; i < fullData.length; i++) {
+      const row = fullData[i];
       const cidade = String(row[cidadeKey] || "").trim();
       const unidade = String(row[unidadeKey] || "").trim();
       const uf = String(row[ufKey] || "").trim();
       const previsaoEntrega = row[previsaoEntregaKey];
       const dataUltimoManifesto = row[dataUltimoManifestoKey];
       
-      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
+      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) {
+        if (i < 5) console.log(`⚠️ Registro ${i} com dados faltantes:`, { cidade, unidade, previsaoEntrega, dataUltimoManifesto });
+        continue;
+      }
+      
+      validRecords++;
       
       // Obter prazo esperado para a cidade
       const prazoEsperado = getPrazoByCidade(cidade, unidade);
-      if (prazoEsperado === null) continue;
+      if (prazoEsperado === null) {
+        recordsWithoutDeadline++;
+        if (recordsWithoutDeadline <= 5) console.log(`❌ Prazo não encontrado para: ${cidade} - ${unidade}`);
+        continue;
+      }
+      
+      recordsWithDeadline++;
       
       // Calcular diferença de dias entre previsão e último manifesto
       const previsaoDate = new Date(previsaoEntrega);
       const manifestoDate = new Date(dataUltimoManifesto);
       
-      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
+      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) {
+        invalidDates++;
+        if (invalidDates <= 5) console.log(`⚠️ Datas inválidas: ${previsaoEntrega} | ${dataUltimoManifesto}`);
+        continue;
+      }
       
       const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (totalCount < 5) {
+        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias < prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
+      }
       
       // Incluir apenas se a diferença for menor que o prazo estabelecido (chegou sem prazo ideal)
       if (diferencaDias < prazoEsperado) {
@@ -318,6 +362,15 @@ const Index: React.FC = () => {
       }
     }
     
+    console.log(`📈 Estatísticas finais:`);
+    console.log(`   - Registros válidos: ${validRecords}`);
+    console.log(`   - Com prazo encontrado: ${recordsWithDeadline}`);
+    console.log(`   - Sem prazo no banco: ${recordsWithoutDeadline}`);
+    console.log(`   - Datas inválidas: ${invalidDates}`);
+    console.log(`   - Total Sem Prazo: ${totalCount}`);
+    
+    console.log('🏢 Contagem por unidades:', Array.from(basesMap.entries()));
+    
     // Converter para array ordenado
     const unidades = Array.from(basesMap.entries()).map(([key, data]) => {
       const unidade = key.split('_')[0];
@@ -329,6 +382,9 @@ const Index: React.FC = () => {
     }).sort((a, b) => b.total - a.total);
     
     const percentage = totalRegistros > 0 ? (totalCount / totalRegistros) * 100 : 0;
+    
+    console.log(`✅ Processamento concluído - Count: ${totalCount}, Percentage: ${percentage.toFixed(2)}%`);
+    console.log(`📊 Unidades processadas:`, unidades);
     
     setSemPrazoData({
       count: totalCount,
