@@ -327,9 +327,20 @@ const Index: React.FC = () => {
       
       recordsWithDeadline++;
       
+      // Função para converter datas DD/MM/YYYY para Date
+      const parseDate = (dateStr: string) => {
+        const cleanStr = String(dateStr).trim();
+        if (cleanStr.includes('/')) {
+          const [day, month, year] = cleanStr.split('/').map(Number);
+          return new Date(year, month - 1, day);
+        }
+        // Tentar parsing direto também
+        return new Date(cleanStr);
+      };
+      
       // Calcular diferença de dias entre previsão e último manifesto
-      const previsaoDate = new Date(previsaoEntrega);
-      const manifestoDate = new Date(dataUltimoManifesto);
+      const previsaoDate = parseDate(previsaoEntrega);
+      const manifestoDate = parseDate(dataUltimoManifesto);
       
       if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) {
         invalidDates++;
