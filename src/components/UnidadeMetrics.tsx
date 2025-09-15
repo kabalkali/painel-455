@@ -178,51 +178,22 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
       };
     }
 
-    // Para card "Sem Prazo", calcular CTRCs que chegaram sem prazo ideal
+    // Para card "Sem Prazo", mostrar todos os pedidos da unidade
     if (codigo === 'semPrazo') {
-      const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
-      const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
-      const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
-      
-      // Base total: todos os CTRCs da unidade (independente do código)
+      // Base total: todos os CTRCs da unidade
       const totalGeralData = full.filter((item: any) => {
         const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
         const matchesUnidade = item[unidadeKey] === unidade;
         return matchesUf && matchesUnidade;
       });
-
-      // Quantidade específica dos CTRCs sem prazo
-      const semPrazoCount = totalGeralData.filter((item: any) => {
-        const cidade = String(item[cidadeKey] || "").trim();
-        const previsaoEntrega = item[previsaoEntregaKey];
-        const dataUltimoManifesto = item[dataUltimoManifestoKey];
-        
-        if (!cidade || !previsaoEntrega || !dataUltimoManifesto) return false;
-        
-        // Obter prazo esperado para a cidade e unidade
-        const prazoEsperado = getPrazoByCidade(cidade, unidade);
-        if (prazoEsperado === null) return false;
-        
-        // Calcular diferença de dias entre previsão e último manifesto
-        const previsaoDate = parseFlexibleDate(previsaoEntrega);
-        const manifestoDate = parseFlexibleDate(dataUltimoManifesto);
-        
-        if (!previsaoDate || !manifestoDate) return false;
-        
-        const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Incluir apenas se a diferença for menor que o prazo estabelecido (chegou sem prazo)
-        return diferencaDias < prazoEsperado;
-      }).length;
       
       const totalGeral = totalGeralData.length;
-      const percentage = totalGeral > 0 ? semPrazoCount / totalGeral * 100 : 0;
       
       return {
         unidade,
-        count: semPrazoCount,
+        count: totalGeral,
         total: totalGeral,
-        percentage: percentage
+        percentage: 100 // Sempre 100% pois mostra todos os pedidos
       };
     }
 

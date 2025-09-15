@@ -98,63 +98,76 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
       return Array.from(groupedMap.values());
     }
 
-    // Para card "Sem Prazo", exibir por código como unidade de medida
+    // Para card "Sem Prazo", agrupar por quantos dias antes da previsão chegaram
     if (codigo === 'semPrazo') {
-      const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
       const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
       const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
       const ctrcKey = keys[1]; // Coluna B (2) - Serie/Numero CTRC
       
-      // Filtrar dados que estão sem prazo
+      // Filtrar todos os dados da unidade
       const filteredData = full.filter((item: any) => {
         const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
         const matchesUnidade = item[unidadeKey] === unidade;
-        const cidade = String(item[cidadeKey] || "").trim();
         const previsaoEntrega = item[previsaoEntregaKey];
         const dataUltimoManifesto = item[dataUltimoManifestoKey];
         
-        if (!matchesUf || !matchesUnidade || !cidade || !previsaoEntrega || !dataUltimoManifesto) return false;
-        
-        // Obter prazo esperado para a cidade
-        const prazoEsperado = getPrazoByCidade(cidade, unidade);
-        if (prazoEsperado === null) return false;
-        
-        const previsaoDate = parseFlexibleDate(previsaoEntrega);
-        const manifestoDate = parseFlexibleDate(dataUltimoManifesto);
-        
-        if (!previsaoDate || !manifestoDate) return false;
-        
-        const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Incluir apenas se a diferença for maior que o prazo estabelecido
-        return diferencaDias > prazoEsperado;
+        return matchesUf && matchesUnidade && previsaoEntrega && dataUltimoManifesto;
       });
 
-      // Mapear para o formato necessário
-      const records = filteredData.map((item: any) => ({
-        codigo: item[ctrcKey] || 'N/A',
-        ultimaAtualizacao: item[dataUltimoManifestoKey] || 'N/A',
-        ctrc: item[ctrcKey] || 'N/A'
-      }));
+      // Mapear e calcular diferença de dias
+      const records = filteredData.map((item: any) => {
+        const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
+        const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
+        
+        let diasAntes = 0;
+        let grupo = 'Dados inválidos';
+        
+        if (previsaoDate && manifestoDate) {
+          diasAntes = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (diasAntes > 0) {
+            grupo = `${diasAntes} dias antes`;
+          } else if (diasAntes === 0) {
+            grupo = 'No prazo';
+          } else {
+            grupo = `${Math.abs(diasAntes)} dias atrasado`;
+          }
+        }
+        
+        return {
+          grupo,
+          diasAntes,
+          ultimaAtualizacao: item[dataUltimoManifestoKey] || 'N/A',
+          ctrc: item[ctrcKey] || 'N/A'
+        };
+      });
 
-      // Agrupar por código e data do último manifesto
+      // Agrupar por quantidade de dias
       const groupedMap = new Map<string, any>();
       records.forEach(record => {
-        const key = `${record.codigo}-${record.ultimaAtualizacao}`;
+        const key = record.grupo;
         if (groupedMap.has(key)) {
           const existing = groupedMap.get(key)!;
           existing.quantidade += 1;
           existing.ctrcs.push(record.ctrc);
         } else {
           groupedMap.set(key, {
-            cidade: record.codigo, // Usar código CTRC como "cidade" para compatibilidade
+            cidade: record.grupo, // Usar grupo como "cidade" para compatibilidade
             ultimaAtualizacao: record.ultimaAtualizacao,
             quantidade: 1,
-            ctrcs: [record.ctrc]
+            ctrcs: [record.ctrc],
+            diasAntes: record.diasAntes
           });
         }
       });
-      return Array.from(groupedMap.values());
+      
+      // Ordenar grupos por quantidade de dias (mais dias antes primeiro)
+      return Array.from(groupedMap.values()).sort((a, b) => {
+        if (a.diasAntes && b.diasAntes) {
+          return b.diasAntes - a.diasAntes;
+        }
+        return a.cidade.localeCompare(b.cidade);
+      });
     }
 
     // Filtrar dados da mesma forma que o UnidadeMetrics
