@@ -170,25 +170,24 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
         };
       });
 
-      // Agrupar por prazo e cidade
+      // Filtrar apenas os registros atrasados
+      const atrasadosRecords = records.filter(record => record.isAtrasado);
+
+      // Agrupar por prazo e cidade apenas os atrasados
       const groupedMap = new Map<string, any>();
-      records.forEach((record) => {
+      atrasadosRecords.forEach((record) => {
         const key = `${record.prazo}-${record.cidade}`;
         if (groupedMap.has(key)) {
           const existing = groupedMap.get(key)!;
           existing.quantidade += 1;
           existing.ctrcs.push(record.ctrc);
-          // Se algum registro está atrasado, marcar o grupo como atrasado
-          if (record.isAtrasado) {
-            existing.isAtrasado = true;
-          }
         } else {
           groupedMap.set(key, {
             cidade: record.prazo, // Exibir prazo na primeira coluna
             ultimaAtualizacao: record.cidade, // Exibir cidade na segunda coluna
             quantidade: 1,
             ctrcs: [record.ctrc],
-            isAtrasado: record.isAtrasado,
+            isAtrasado: true, // Todos são atrasados por definição
           });
         }
       });

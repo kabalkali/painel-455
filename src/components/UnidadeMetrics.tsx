@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { differenceInCalendarDays } from 'date-fns';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import { parseFlexibleDate } from '@/utils/date';
 import UnidadeDetailDialog from './UnidadeDetailDialog';
@@ -178,22 +179,68 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
       };
     }
 
-    // Para card "Sem Prazo", mostrar todos os pedidos da unidade
+    // Para card "Sem Prazo", mostrar apenas os pedidos atrasados (em vermelho)
     if (codigo === 'semPrazo') {
+      // Resolver colunas por nome (robusto a mudanças de ordem)
+      const normalize = (s: string) => s?.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const findKey = (...fragments: string[]) => {
+        return keys.find((k) => {
+          const nk = normalize(k);
+          return fragments.every((f) => nk.includes(normalize(f)));
+        });
+      };
+
+      const previsaoEntregaKey = findKey('previsao', 'entrega') || keys[97]; // CV
+      const dataUltimoManifestoKey = findKey('data', 'ultimo', 'manifesto') || keys[85]; // CI
+      const cidadeEntregaKey = findKey('cidade', 'entrega') || keys[49]; // AX
+      const unidadeReceptoraKey = findKey('unidade', 'receptora') || keys[52]; // BA
+      const ufKeyResolved = findKey('uf') || keys[50];
+
       // Base total: todos os CTRCs da unidade
       const totalGeralData = full.filter((item: any) => {
-        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
-        const matchesUnidade = item[unidadeKey] === unidade;
+        const matchesUf = selectedUf === 'todas' || item[ufKeyResolved] === selectedUf;
+        const matchesUnidade = item[unidadeReceptoraKey] === unidade;
         return matchesUf && matchesUnidade;
       });
+
+      // Filtrar dados com previsão e manifesto válidos
+      const validData = totalGeralData.filter((item: any) => {
+        const previsaoEntrega = item[previsaoEntregaKey];
+        const dataUltimoManifesto = item[dataUltimoManifestoKey];
+        return previsaoEntrega && dataUltimoManifesto;
+      });
+
+      // Calcular apenas os pedidos atrasados
+      const atrasadosCount = validData.filter((item: any) => {
+        const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
+        const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
+        const cidade = item[cidadeEntregaKey] || 'N/A';
+        const unidadeReceptora = item[unidadeReceptoraKey] || unidade;
+
+        if (previsaoDate && manifestoDate) {
+          const delta = differenceInCalendarDays(previsaoDate, manifestoDate); // CV - CI
+          const diasCalculados = Math.abs(delta);
+          
+          // Buscar prazo ideal da cidade no banco de dados
+          const prazoIdeal = getPrazoByCidade(cidade, unidadeReceptora);
+          if (prazoIdeal !== null) {
+            // Se chegou com menos dias que o prazo ideal ou depois da previsão, está atrasado
+            if (delta <= 0 || diasCalculados < prazoIdeal) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }).length;
       
       const totalGeral = totalGeralData.length;
+      const percentage = totalGeral > 0 ? atrasadosCount / totalGeral * 100 : 0;
       
       return {
         unidade,
-        count: totalGeral,
+        count: atrasadosCount,
         total: totalGeral,
-        percentage: 100 // Sempre 100% pois mostra todos os pedidos
+        percentage: percentage
       };
     }
 
