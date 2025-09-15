@@ -354,23 +354,25 @@ const Index: React.FC = () => {
         console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias > prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
       }
       
-      // Incluir apenas se a diferença for maior que o prazo estabelecido (chegou sem prazo ideal)
-      if (diferencaDias > prazoEsperado) {
-        totalCount++;
-        const key = `${unidade}_${uf}`;
-        if (basesMap.has(key)) {
-          const existing = basesMap.get(key)!;
-          basesMap.set(key, {
-            ...existing,
-            total: existing.total + 1
-          });
-        } else {
-          basesMap.set(key, {
-            uf,
-            total: 1
-          });
-        }
-      }
+    // Contar sempre para o total
+    const key = `${unidade}_${uf}`;
+    if (basesMap.has(key)) {
+      const existing = basesMap.get(key)!;
+      basesMap.set(key, {
+        ...existing,
+        total: existing.total + 1
+      });
+    } else {
+      basesMap.set(key, {
+        uf,
+        total: 1
+      });
+    }
+    
+    // Incluir para contagem apenas se a diferença for maior que o prazo estabelecido (chegou sem prazo ideal)
+    if (diferencaDias > prazoEsperado) {
+      totalCount++;
+    }
     }
     
     console.log(`📈 Estatísticas finais:`);
@@ -392,13 +394,17 @@ const Index: React.FC = () => {
       };
     }).sort((a, b) => b.total - a.total);
     
-    const percentage = totalRegistros > 0 ? (totalCount / totalRegistros) * 100 : 0;
+    // Total de registros válidos (para mostrar no card principal)
+    const totalValidRecords = Array.from(basesMap.values()).reduce((sum, data) => sum + data.total, 0);
+    
+    // Porcentagem dos atrasados em relação ao total válido
+    const percentage = totalValidRecords > 0 ? (totalCount / totalValidRecords) * 100 : 0;
     
     console.log(`✅ Processamento concluído - Count: ${totalCount}, Percentage: ${percentage.toFixed(2)}%`);
     console.log(`📊 Unidades processadas:`, unidades);
     
     setSemPrazoData({
-      count: totalCount,
+      count: totalValidRecords, // Mostrar total de registros válidos no card principal
       percentage: percentage,
       unidades
     });
