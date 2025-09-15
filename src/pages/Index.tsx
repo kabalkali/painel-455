@@ -351,11 +351,11 @@ const Index: React.FC = () => {
       const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
       
       if (totalCount < 5) {
-        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias < prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
+        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias > prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
       }
       
-      // Incluir apenas se a diferença for menor que o prazo estabelecido (chegou sem prazo ideal)
-      if (diferencaDias < prazoEsperado) {
+      // Incluir apenas se a diferença for maior que o prazo estabelecido (chegou sem prazo ideal)
+      if (diferencaDias > prazoEsperado) {
         totalCount++;
         const key = `${unidade}_${uf}`;
         if (basesMap.has(key)) {

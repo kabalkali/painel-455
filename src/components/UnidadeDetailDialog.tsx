@@ -126,8 +126,8 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
         
         const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
         
-        // Incluir apenas se a diferença for menor que o prazo estabelecido
-        return diferencaDias < prazoEsperado;
+        // Incluir apenas se a diferença for maior que o prazo estabelecido
+        return diferencaDias > prazoEsperado;
       });
 
       // Mapear para o formato necessário
