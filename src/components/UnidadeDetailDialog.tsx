@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { ArrowUp, ArrowDown, Copy, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { differenceInCalendarDays } from 'date-fns';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import { parseFlexibleDate } from '@/utils/date';
 import CtrcDetailDialog from './CtrcDetailDialog';
@@ -122,7 +123,7 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
         let prazoCalculado = 'Dados inválidos';
         
         if (previsaoDate && manifestoDate) {
-          const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+          const diferencaDias = differenceInCalendarDays(previsaoDate, manifestoDate);
           prazoCalculado = `${diferencaDias} dias`;
         }
         
