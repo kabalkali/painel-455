@@ -20,6 +20,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { getFormattedCodeDescription } from '@/utils/codeMapping';
 import { getDriverName } from '@/utils/driversData';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
+import { parseFlexibleDate } from '@/utils/date';
+import { findRequiredColumns } from '@/utils/columnUtils';
 import UnidadeMetrics from '@/components/UnidadeMetrics';
 interface ResultData {
   code: string | number;
@@ -337,7 +339,6 @@ const Index: React.FC = () => {
   // Nova função para processar dados de sem prazo
   const processSemPrazoData = (fullData: any[], columnName: string) => {
     console.log('🔄 Iniciando processamento Sem Prazo...');
-    console.log('🔍 DEBUG - processSemPrazoData foi chamada com:', { dataLength: fullData?.length, columnName });
     
     if (!fullData || fullData.length === 0) {
       console.log('❌ Nenhum dado disponível');
@@ -350,24 +351,19 @@ const Index: React.FC = () => {
     const keys = Object.keys(firstRow);
     
     console.log(`📋 Total de colunas: ${keys.length}`);
-    console.log(`🔍 Primeiras colunas:`, keys.slice(0, 10));
     
-    // Identificar as colunas necessárias
-    const cidadeKey = keys[49]; // Coluna AX (50) - Cidade de Entrega
-    const unidadeKey = keys[52]; // Coluna BA (53) - Unidade Receptora
-    const ufKey = keys[50]; // UF
-    const previsaoEntregaKey = keys[97]; // Coluna CV (98) - Previsao de Entrega
-    const dataUltimoManifestoKey = keys[85]; // Coluna CI (86) - Data do Ultimo Manifesto
+    // Usar busca dinâmica para encontrar as colunas
+    const columns = findRequiredColumns(keys);
     
-    console.log(`🏷️ Colunas identificadas:`);
-    console.log(`   - Cidade (49): ${cidadeKey}`);
-    console.log(`   - Unidade (52): ${unidadeKey}`);
-    console.log(`   - UF (50): ${ufKey}`);
-    console.log(`   - Previsão Entrega (97): ${previsaoEntregaKey}`);
-    console.log(`   - Data Último Manifesto (85): ${dataUltimoManifestoKey}`);
+    console.log(`🏷️ Colunas identificadas dinamicamente:`);
+    console.log(`   - Cidade: ${columns.cidade} (índice: ${columns.indices.cidade})`);
+    console.log(`   - Unidade: ${columns.unidade} (índice: ${columns.indices.unidade})`);
+    console.log(`   - UF: ${columns.uf} (índice: ${columns.indices.uf})`);
+    console.log(`   - Previsão Entrega: ${columns.previsaoEntrega} (índice: ${columns.indices.previsaoEntrega})`);
+    console.log(`   - Data Último Manifesto: ${columns.dataUltimoManifesto} (índice: ${columns.indices.dataUltimoManifesto})`);
     
-    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) {
-      console.log('❌ Colunas necessárias não encontradas');
+    if (!columns.cidade || !columns.unidade || !columns.previsaoEntrega || !columns.dataUltimoManifesto) {
+      console.log('❌ Colunas necessárias não encontradas. Verifique se o arquivo contém as colunas obrigatórias.');
       return;
     }
     
@@ -388,14 +384,14 @@ const Index: React.FC = () => {
     
     for (let i = 0; i < fullData.length; i++) {
       const row = fullData[i];
-      const cidade = String(row[cidadeKey] || "").trim();
-      const unidade = String(row[unidadeKey] || "").trim();
-      const uf = String(row[ufKey] || "").trim();
-      const previsaoEntrega = row[previsaoEntregaKey];
-      const dataUltimoManifesto = row[dataUltimoManifestoKey];
+      const cidade = String(row[columns.cidade] || "").trim();
+      const unidade = String(row[columns.unidade] || "").trim();
+      const uf = String(row[columns.uf] || "").trim();
+      const previsaoEntrega = row[columns.previsaoEntrega];
+      const dataUltimoManifesto = row[columns.dataUltimoManifesto];
       
       if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) {
-        if (i < 5) console.log(`⚠️ Registro ${i} com dados faltantes:`, { cidade, unidade, previsaoEntrega, dataUltimoManifesto });
+        if (i < 3) console.log(`⚠️ Registro ${i} com dados faltantes:`, { cidade, unidade, previsaoEntrega, dataUltimoManifesto });
         continue;
       }
       
@@ -405,38 +401,27 @@ const Index: React.FC = () => {
       const prazoEsperado = getPrazoByCidade(cidade, unidade);
       if (prazoEsperado === null) {
         recordsWithoutDeadline++;
-        if (recordsWithoutDeadline <= 5) console.log(`❌ Prazo não encontrado para: ${cidade} - ${unidade}`);
+        if (recordsWithoutDeadline <= 3) console.log(`❌ Prazo não encontrado para: ${cidade} - ${unidade}`);
         continue;
       }
       
       recordsWithDeadline++;
       
-      // Função para converter datas DD/MM/YYYY para Date
-      const parseDate = (dateStr: string) => {
-        const cleanStr = String(dateStr).trim();
-        if (cleanStr.includes('/')) {
-          const [day, month, year] = cleanStr.split('/').map(Number);
-          return new Date(year, month - 1, day);
-        }
-        // Tentar parsing direto também
-        return new Date(cleanStr);
-      };
+      // Usar função de parsing mais robusta
+      const previsaoDate = parseFlexibleDate(previsaoEntrega);
+      const manifestoDate = parseFlexibleDate(dataUltimoManifesto);
       
-      // Calcular diferença de dias entre previsão e último manifesto
-      const previsaoDate = parseDate(previsaoEntrega);
-      const manifestoDate = parseDate(dataUltimoManifesto);
-      
-      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) {
+      if (!previsaoDate || !manifestoDate) {
         invalidDates++;
-        if (invalidDates <= 5) console.log(`⚠️ Datas inválidas: ${previsaoEntrega} | ${dataUltimoManifesto}`);
+        if (invalidDates <= 3) console.log(`⚠️ Datas inválidas: ${previsaoEntrega} | ${dataUltimoManifesto}`);
         continue;
       }
       
       const delta = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
       const diasCalculados = Math.abs(delta);
       
-      if (totalCount < 5) {
-        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Delta: ${delta} dias | Dias calc: ${diasCalculados} | Prazo: ${prazoEsperado} dias | ${(delta <= 0 || diasCalculados < prazoEsperado) ? 'SEM PRAZO' : 'NO PRAZO'}`);
+      if (totalCount < 2) {
+        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Delta: ${delta} dias | Prazo: ${prazoEsperado} dias | ${(delta <= 0 || diasCalculados < prazoEsperado) ? 'SEM PRAZO' : 'NO PRAZO'}`);
       }
       
       // Contar todos os registros válidos com prazo encontrado para o total geral
@@ -497,8 +482,8 @@ const Index: React.FC = () => {
     // Porcentagem dos atrasados em relação ao total válido
     const percentage = totalValidRecords > 0 ? (totalCount / totalValidRecords) * 100 : 0;
     
-    console.log(`✅ Processamento concluído - Count: ${totalCount}, Percentage: ${percentage.toFixed(2)}%`);
-    console.log(`📊 Unidades processadas:`, unidades);
+  console.log(`📈 Resultado final: ${totalCount} registros sem prazo (${percentage.toFixed(2)}%)`);
+  console.log(`🏢 Unidades com registros atrasados:`, unidades.length);
     
     setSemPrazoData({
       count: totalCount, // Total de pedidos atrasados apenas

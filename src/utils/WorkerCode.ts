@@ -52,8 +52,8 @@ export const workerCode = `
         const code = String(row[targetColumn]);
         frequencyMap.set(code, (frequencyMap.get(code) || 0) + 1);
         
-        // Debug: log dos primeiros códigos encontrados
-        if (index < 5) {
+        // Debug: log apenas dos primeiros códigos encontrados
+        if (index < 3) {
           console.log('[WORKER] Código encontrado na linha', index + 1, ':', code);
         }
         
@@ -70,7 +70,7 @@ export const workerCode = `
           const cityMap = cityByCodeMap.get(code);
           cityMap.set(city, (cityMap.get(city) || 0) + 1);
         }
-      } else if (index < 5) {
+      } else if (index < 2) {
         console.log('[WORKER] Linha', index + 1, 'sem código válido. Valor:', row[targetColumn]);
       }
     });

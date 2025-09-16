@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { differenceInCalendarDays } from 'date-fns';
 import { getPrazoByCidade } from '@/utils/prazosEntrega';
 import { parseFlexibleDate } from '@/utils/date';
+import { findRequiredColumns } from '@/utils/columnUtils';
 import CtrcDetailDialog from './CtrcDetailDialog';
 interface UnidadeDetailDialogProps {
   isOpen: boolean;
@@ -101,81 +102,45 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
 
     // Para card "Sem Prazo", agrupar por prazo calculado (CV-CI) e cidade
     if (codigo === 'semPrazo') {
-      // Resolver colunas por nome (robusto a mudanças de ordem)
-      const normalize = (s: string) => s?.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-      const findKey = (...fragments: string[]) => {
-        return keys.find((k) => {
-          const nk = normalize(k);
-          return fragments.every((f) => nk.includes(normalize(f)));
-        });
-      };
-
-      const previsaoEntregaKey = findKey('previsao', 'entrega') || keys[97]; // CV
-      const dataUltimoManifestoKey = findKey('data', 'ultimo', 'manifesto') || keys[85]; // CI
-      const cidadeEntregaKey = findKey('cidade', 'entrega') || keys[49]; // AX
-      const unidadeReceptoraKey = findKey('unidade', 'receptora') || keys[52]; // BA
-      const ufKeyResolved = findKey('uf') || keys[50];
-      const ctrcKeyResolved = ctrcKey;
-
-      // Filtrar todos os dados da unidade
+      // Usar busca dinâmica para encontrar as colunas
+      const columns = findRequiredColumns(keys);
+      
+      if (!columns.previsaoEntrega || !columns.dataUltimoManifesto) {
+        console.log('❌ Colunas de data não encontradas para Sem Prazo');
+        return [];
+      }
+      
       const filteredData = full.filter((item: any) => {
-        const matchesUf = selectedUf === 'todas' || item[ufKeyResolved] === selectedUf;
-        const matchesUnidade = item[unidadeReceptoraKey] === unidade;
-        const previsaoEntrega = item[previsaoEntregaKey];
-        const dataUltimoManifesto = item[dataUltimoManifestoKey];
+        const matchesUf = selectedUf === 'todas' || item[ufKey] === selectedUf;
+        const matchesUnidade = item[unidadeKey] === unidade;
+        const previsaoEntrega = item[columns.previsaoEntrega];
+        const dataUltimoManifesto = item[columns.dataUltimoManifesto];
+        
         return matchesUf && matchesUnidade && previsaoEntrega && dataUltimoManifesto;
       });
 
-      // Mapear e calcular prazo (CV - CI) em dias com rótulo "antes/depois/no dia"
+      // Mapear e calcular prazo (CV - CI) em dias
       const records = filteredData.map((item: any) => {
-        const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
-        const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
-        const cidade = item[cidadeEntregaKey] || 'N/A';
-        const unidadeReceptora = item[unidadeReceptoraKey] || unidade;
-
+        const previsaoDate = parseFlexibleDate(item[columns.previsaoEntrega]);
+        const manifestoDate = parseFlexibleDate(item[columns.dataUltimoManifesto]);
+        
         let prazoCalculado = 'Dados inválidos';
-        let diasCalculados = 0;
-        let isAtrasado = false;
-
+        
         if (previsaoDate && manifestoDate) {
-          const delta = differenceInCalendarDays(previsaoDate, manifestoDate); // CV - CI
-          const abs = Math.abs(delta);
-          diasCalculados = abs;
-          
-          if (delta === 0) {
-            prazoCalculado = 'no dia';
-          } else if (delta > 0) {
-            prazoCalculado = `${abs} dias antes`;
-          } else {
-            prazoCalculado = `${abs} dias depois`;
-          }
-
-          // Buscar prazo ideal da cidade no banco de dados
-          const prazoIdeal = getPrazoByCidade(cidade, unidadeReceptora);
-          if (prazoIdeal !== null) {
-            // Se chegou com menos dias que o prazo ideal, está atrasado
-            // Para "dias antes", comparamos diasCalculados < prazoIdeal
-            // Para "dias depois", sempre considera atrasado
-            if (delta <= 0 || diasCalculados < prazoIdeal) {
-              isAtrasado = true;
-            }
-          }
+          const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+          prazoCalculado = `${diferencaDias} dias`;
         }
-
+        
         return {
           prazo: prazoCalculado,
-          cidade,
-          ctrc: item[ctrcKeyResolved] || 'N/A',
-          isAtrasado,
+          cidade: item[columns.cidade] || 'N/A',
+          ctrc: item[columns.ctrc] || 'N/A'
         };
       });
 
-      // Filtrar apenas os registros atrasados
-      const atrasadosRecords = records.filter(record => record.isAtrasado);
-
-      // Agrupar por prazo e cidade apenas os atrasados
+      // Agrupar por prazo e cidade
       const groupedMap = new Map<string, any>();
-      atrasadosRecords.forEach((record) => {
+      records.forEach(record => {
         const key = `${record.prazo}-${record.cidade}`;
         if (groupedMap.has(key)) {
           const existing = groupedMap.get(key)!;
@@ -183,15 +148,14 @@ const UnidadeDetailDialog: React.FC<UnidadeDetailDialogProps> = ({
           existing.ctrcs.push(record.ctrc);
         } else {
           groupedMap.set(key, {
-            cidade: record.prazo, // Exibir prazo na primeira coluna
-            ultimaAtualizacao: record.cidade, // Exibir cidade na segunda coluna
+            cidade: record.prazo, // Usar prazo no lugar de "cidade" para mostrar na primeira coluna
+            ultimaAtualizacao: record.cidade, // Usar cidade no lugar de "ultima atualização"
             quantidade: 1,
-            ctrcs: [record.ctrc],
-            isAtrasado: true, // Todos são atrasados por definição
+            ctrcs: [record.ctrc]
           });
         }
       });
-
+      
       return Array.from(groupedMap.values());
     }
 
