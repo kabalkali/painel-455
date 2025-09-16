@@ -337,6 +337,7 @@ const Index: React.FC = () => {
   // Nova função para processar dados de sem prazo
   const processSemPrazoData = (fullData: any[], columnName: string) => {
     console.log('🔄 Iniciando processamento Sem Prazo...');
+    console.log('🔍 DEBUG - processSemPrazoData foi chamada com:', { dataLength: fullData?.length, columnName });
     
     if (!fullData || fullData.length === 0) {
       console.log('❌ Nenhum dado disponível');
@@ -1728,7 +1729,14 @@ const Index: React.FC = () => {
                       <CardContent className="pt-4">
                         <div className="flex justify-between items-center">
                           <div className="text-3xl font-bold text-purple-600">
-                            {semPrazoData?.unidades?.reduce((total, unidade) => total + unidade.total, 0) || 0}
+                            {(() => {
+                              console.log('🔍 Debug Sem Prazo - semPrazoData:', semPrazoData);
+                              console.log('🔍 Debug Sem Prazo - semPrazoCalculatedData:', semPrazoCalculatedData);
+                              
+                              // Usar semPrazoData se disponível, caso contrário usar semPrazoCalculatedData
+                              const unidadesTotal = semPrazoData?.unidades?.reduce((total, unidade) => total + unidade.total, 0);
+                              return unidadesTotal || semPrazoCalculatedData.count || 0;
+                            })()}
                           </div>
                           <div className="text-xl font-semibold px-3 py-1 bg-gradient-to-r from-purple-400 to-violet-500 text-white rounded-full shadow-sm">
                             {semPrazoCalculatedData.percentage.toFixed(1)}%
