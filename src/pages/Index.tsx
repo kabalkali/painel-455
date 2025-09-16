@@ -1728,7 +1728,7 @@ const Index: React.FC = () => {
                       <CardContent className="pt-4">
                         <div className="flex justify-between items-center">
                           <div className="text-3xl font-bold text-purple-600">
-                            {semPrazoCalculatedData.count}
+                            {semPrazoData?.unidades?.reduce((total, unidade) => total + unidade.total, 0) || 0}
                           </div>
                           <div className="text-xl font-semibold px-3 py-1 bg-gradient-to-r from-purple-400 to-violet-500 text-white rounded-full shadow-sm">
                             {semPrazoCalculatedData.percentage.toFixed(1)}%
