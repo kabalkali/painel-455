@@ -13,14 +13,25 @@ export const workerCode = `
   self.onmessage = function(e) {
     const { chunk, targetColumn } = e.data;
     
+    console.log('[WORKER] Iniciando processamento de chunk:', chunk.length, 'registros');
+    console.log('[WORKER] Coluna alvo:', targetColumn);
+    
     // Usar Map e Set para melhor performance com grandes conjuntos de dados
     const frequencyMap = new Map();
     const ufEntregaSet = new Set();
     const ufUnidadeMap = new Map();
     const cityByCodeMap = new Map(); // Map para relacionar código <-> cidade
     
+    // Debug: verificar primeiro registro
+    if (chunk.length > 0) {
+      const firstRow = chunk[0];
+      console.log('[WORKER] Primeiro registro - chaves:', Object.keys(firstRow));
+      console.log('[WORKER] Primeiro registro - amostra:', firstRow);
+      console.log('[WORKER] Valor da coluna alvo no primeiro registro:', firstRow[targetColumn]);
+    }
+    
     // Processar apenas os dados necessários, sem fazer cópias completas
-    chunk.forEach(row => {
+    chunk.forEach((row, index) => {
       // Extrair UF de Entrega (coluna 51)
       if (row[Object.keys(row)[50]]) {
         const ufEntrega = String(row[Object.keys(row)[50]]);
@@ -41,6 +52,11 @@ export const workerCode = `
         const code = String(row[targetColumn]);
         frequencyMap.set(code, (frequencyMap.get(code) || 0) + 1);
         
+        // Debug: log dos primeiros códigos encontrados
+        if (index < 5) {
+          console.log('[WORKER] Código encontrado na linha', index + 1, ':', code);
+        }
+        
         // Extrair cidade (coluna 50) e relacionar com o código
         const cityKey = Object.keys(row)[49]; // Índice 49 corresponde a coluna 50
         
@@ -54,8 +70,13 @@ export const workerCode = `
           const cityMap = cityByCodeMap.get(code);
           cityMap.set(city, (cityMap.get(city) || 0) + 1);
         }
+      } else if (index < 5) {
+        console.log('[WORKER] Linha', index + 1, 'sem código válido. Valor:', row[targetColumn]);
       }
     });
+    
+    console.log('[WORKER] Códigos únicos encontrados:', frequencyMap.size);
+    console.log('[WORKER] UFs de entrega encontradas:', ufEntregaSet.size);
     
     // Converter Map para objeto apenas no final para enviar resultado
     const frequencyObj = {};

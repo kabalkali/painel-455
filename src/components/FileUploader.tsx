@@ -104,6 +104,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     console.log('[SSWWEB] Iniciando preprocessamento...');
     const lines = content.split('\n');
     console.log(`[SSWWEB] Total de linhas: ${lines.length}`);
+    console.log(`[SSWWEB] Primeira linha (será removida):`, lines[0]?.substring(0, 200));
+    console.log(`[SSWWEB] Segunda linha (headers):`, lines[1]?.substring(0, 200));
     
     // Remove a primeira linha (geralmente contém informações extras)
     const processedContent = lines.slice(1).join('\n');
@@ -114,7 +116,16 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     
     // Extrai headers da segunda linha (primeira linha dos dados)
     const headers = lines[1] ? lines[1].split(delimiter).map(h => h.trim()) : [];
-    console.log(`[SSWWEB] Headers detectados (${headers.length}):`, headers.slice(0, 10));
+    console.log(`[SSWWEB] Headers detectados (${headers.length}):`, headers);
+    
+    // Verificar se as colunas importantes estão presentes
+    const pedidosColumn = headers.find(h => h.includes('Serie/Numero CTRC') || h.includes('CTRC'));
+    const codigosColumn = headers.find(h => h.includes('Codigo da Ultima Ocorrencia'));
+    
+    console.log(`[SSWWEB] Coluna de pedidos encontrada:`, pedidosColumn || 'NÃO ENCONTRADA');
+    console.log(`[SSWWEB] Coluna de códigos encontrada:`, codigosColumn || 'NÃO ENCONTRADA');
+    console.log(`[SSWWEB] Índice da coluna de pedidos:`, headers.indexOf(pedidosColumn || ''));
+    console.log(`[SSWWEB] Índice da coluna de códigos:`, headers.indexOf(codigosColumn || ''));
     
     return { processedContent, delimiter, headers };
   };
@@ -195,6 +206,31 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                       sampleRows.push(...results.data.slice(0, 10));
                       headers = results.meta.fields || detectedHeaders;
                       console.log(`[SSWWEB] Headers finais utilizados: ${headers.length}`, headers.slice(0, 5));
+                      
+                      // Debug: verificar estrutura dos dados parseados
+                      console.log(`[SSWWEB] Primeiro chunk - registros:`, results.data.length);
+                      console.log(`[SSWWEB] Amostra de dados parseados:`, results.data.slice(0, 3));
+                      
+                      // Verificar colunas específicas
+                      const firstRow = results.data[0];
+                      if (firstRow) {
+                        const allKeys = Object.keys(firstRow);
+                        console.log(`[SSWWEB] Todas as chaves disponíveis (${allKeys.length}):`, allKeys);
+                        
+                        // Procurar coluna de pedidos
+                        const pedidosKey = allKeys.find(key => key.includes('Serie/Numero CTRC') || key.includes('CTRC') || key.toLowerCase().includes('serie'));
+                        console.log(`[SSWWEB] Chave de pedidos encontrada:`, pedidosKey);
+                        if (pedidosKey) {
+                          console.log(`[SSWWEB] Amostra de valores de pedidos:`, results.data.slice(0, 5).map(row => row[pedidosKey]));
+                        }
+                        
+                        // Procurar coluna de códigos
+                        const codigosKey = allKeys.find(key => key.includes('Codigo da Ultima Ocorrencia'));
+                        console.log(`[SSWWEB] Chave de códigos encontrada:`, codigosKey);
+                        if (codigosKey) {
+                          console.log(`[SSWWEB] Amostra de valores de códigos:`, results.data.slice(0, 5).map(row => row[codigosKey]));
+                        }
+                      }
                     }
                     
                     currentBatch.push(...results.data);
