@@ -205,9 +205,11 @@ const Index: React.FC = () => {
       
       if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
       
-      const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      const delta = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      const diasCalculados = Math.abs(delta);
       
-      if (diferencaDias > prazoEsperado) {
+      // Se chegou com menos dias que o prazo ideal ou depois da previsão, está atrasado
+      if (delta <= 0 || diasCalculados < prazoEsperado) {
         atrasadosCount++;
       }
     }
@@ -429,10 +431,11 @@ const Index: React.FC = () => {
         continue;
       }
       
-      const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      const delta = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      const diasCalculados = Math.abs(delta);
       
       if (totalCount < 5) {
-        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Diferença: ${diferencaDias} dias | Prazo: ${prazoEsperado} dias | ${diferencaDias > prazoEsperado ? 'SEM PRAZO' : 'NO PRAZO'}`);
+        console.log(`🔍 Exemplo ${totalCount + 1}: ${cidade} - ${unidade} | Delta: ${delta} dias | Dias calc: ${diasCalculados} | Prazo: ${prazoEsperado} dias | ${(delta <= 0 || diasCalculados < prazoEsperado) ? 'SEM PRAZO' : 'NO PRAZO'}`);
       }
       
       // Contar todos os registros válidos com prazo encontrado para o total geral
@@ -450,8 +453,8 @@ const Index: React.FC = () => {
         });
       }
       
-      // Incluir para contagem de atrasados apenas se a diferença for maior que o prazo estabelecido
-      if (diferencaDias > prazoEsperado) {
+      // Incluir para contagem de atrasados se chegou com menos dias que o prazo ideal ou depois da previsão
+      if (delta <= 0 || diasCalculados < prazoEsperado) {
         totalCount++;
         if (delayedBasesMap.has(key)) {
           const existing = delayedBasesMap.get(key)!;
