@@ -77,12 +77,46 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     }
   };
 
-  const preprocessSSWWeb = (content: string): string => {
+  // Função para detectar delimitador automaticamente
+  const detectDelimiter = (content: string): string => {
+    const sampleLines = content.split('\n').slice(0, 5); // Analisa primeiras 5 linhas
+    const delimiters = [';', ',', '\t', '|'];
+    let bestDelimiter = ';';
+    let maxCount = 0;
+
+    for (const delimiter of delimiters) {
+      const counts = sampleLines.map(line => (line.match(new RegExp(`\\${delimiter}`, 'g')) || []).length);
+      const avgCount = counts.reduce((sum, count) => sum + count, 0) / counts.length;
+      const consistency = counts.every(count => Math.abs(count - avgCount) <= 1);
+      
+      if (avgCount > maxCount && consistency && avgCount > 0) {
+        maxCount = avgCount;
+        bestDelimiter = delimiter;
+      }
+    }
+
+    console.log(`[SSWWEB] Delimitador detectado: '${bestDelimiter}' com média de ${maxCount} colunas`);
+    return bestDelimiter;
+  };
+
+  // Função para preprocessar arquivos SSWWEB
+  const preprocessSSWWeb = (content: string): { processedContent: string; delimiter: string; headers: string[] } => {
+    console.log('[SSWWEB] Iniciando preprocessamento...');
     const lines = content.split('\n');
-    // Remove a primeira linha (cabeçalho inútil) e mantém o resto
-    const processedLines = lines.slice(1);
-    // Mantém os pontos e vírgulas como delimitadores para Papa.parse
-    return processedLines.join('\n');
+    console.log(`[SSWWEB] Total de linhas: ${lines.length}`);
+    
+    // Remove a primeira linha (geralmente contém informações extras)
+    const processedContent = lines.slice(1).join('\n');
+    console.log(`[SSWWEB] Linhas após remoção da primeira: ${lines.length - 1}`);
+    
+    // Detecta o delimitador automaticamente
+    const delimiter = detectDelimiter(processedContent);
+    
+    // Extrai headers da segunda linha (primeira linha dos dados)
+    const headers = lines[1] ? lines[1].split(delimiter).map(h => h.trim()) : [];
+    console.log(`[SSWWEB] Headers detectados (${headers.length}):`, headers.slice(0, 10));
+    
+    return { processedContent, delimiter, headers };
   };
 
   const processFile = async (file: File) => {
@@ -135,15 +169,18 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                   return;
                 }
                 
-                const processedContent = preprocessSSWWeb(content);
+                const { processedContent, delimiter, headers: detectedHeaders } = preprocessSSWWeb(content);
+                console.log(`[SSWWEB] Usando delimitador: '${delimiter}'`);
+                console.log(`[SSWWEB] Headers detectados: ${detectedHeaders.length}`);
+                
                 const blob = new Blob([processedContent], { type: 'text/csv' });
                 const processedFile = new File([blob], file.name.replace('.sswweb', '.csv'), { type: 'text/csv' });
                 
-                // Agora processar como CSV com delimitador de ponto e vírgula
+                // Agora processar como CSV com delimitador detectado automaticamente
                 Papa.parse(processedFile, {
                   header: true,
                   skipEmptyLines: true,
-                  delimiter: ';',
+                  delimiter: delimiter,
                   chunk: async (results, parser) => {
                     // ... resto da lógica de chunk permanece igual
                     parser.pause();
@@ -156,7 +193,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                     if (firstChunk) {
                       firstChunk = false;
                       sampleRows.push(...results.data.slice(0, 10));
-                      headers = results.meta.fields || [];
+                      headers = results.meta.fields || detectedHeaders;
+                      console.log(`[SSWWEB] Headers finais utilizados: ${headers.length}`, headers.slice(0, 5));
                     }
                     
                     currentBatch.push(...results.data);
@@ -199,10 +237,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                     }
                   },
                   error: (error) => {
+                    console.error('[SSWWEB] Erro no Papa.parse:', error);
                     throw new Error(`Erro ao processar SSWWEB: ${error}`);
                   }
                 });
               } catch (error) {
+                console.error('[SSWWEB] Erro geral:', error);
                 toast({
                   title: "Erro ao processar arquivo SSWWEB",
                   description: error instanceof Error ? error.message : "Erro desconhecido",
@@ -213,7 +253,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
               }
             }
           };
-          reader.readAsText(file);
+          reader.readAsText(file, 'UTF-8'); // Especificar encoding
         } else {
           // Processar CSV normal
           Papa.parse(file, {
@@ -356,8 +396,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
   const processAndValidateData = async (data: any[], headers: string[], signal: AbortSignal) => {
     if (signal.aborted) throw new Error('Processing aborted');
     
+    console.log(`[DEBUG] Iniciando processAndValidateData com ${data.length} registros`);
+    console.log(`[DEBUG] Headers recebidos (${headers.length}):`, headers.slice(0, 10));
+    
     // Verifica se os dados estão vazios
     if (!data || data.length === 0) {
+      console.error('[DEBUG] Dados vazios recebidos');
       toast({
         title: "Arquivo vazio",
         description: "O arquivo não contém dados para processar.",
@@ -372,26 +416,46 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     const firstRow = data[0];
     let columnName = targetColumn;
     
+    console.log(`[DEBUG] Primeira linha de dados:`, Object.keys(firstRow).slice(0, 10));
+    console.log(`[DEBUG] Procurando coluna: "${targetColumn}"`);
+    
     if (!firstRow.hasOwnProperty(targetColumn)) {
+      console.log(`[DEBUG] Coluna "${targetColumn}" não encontrada, tentando usar índice 33`);
       // Se não encontrou a coluna pelo nome, tenta usar o índice 33
       const columnKeys = Object.keys(firstRow);
+      console.log(`[DEBUG] Total de colunas disponíveis: ${columnKeys.length}`);
+      
       if (columnKeys.length >= 33) {
         columnName = columnKeys[32]; // índice 32 corresponde à coluna 33 (0-based index)
+        console.log(`[DEBUG] Usando coluna do índice 33: "${columnName}"`);
       } else {
+        console.error(`[DEBUG] Arquivo tem apenas ${columnKeys.length} colunas, menor que 33`);
         toast({
           title: "Erro na estrutura do arquivo",
-          description: "Não foi possível encontrar a coluna 33 no arquivo.",
+          description: `Arquivo tem apenas ${columnKeys.length} colunas. É necessário ter pelo menos 33 colunas.`,
           variant: "destructive",
         });
         return;
       }
+    } else {
+      console.log(`[DEBUG] Coluna "${targetColumn}" encontrada com sucesso`);
     }
     
+    // Validar se a coluna selecionada tem dados
+    const sampleValues = data.slice(0, 100).map(row => row[columnName]).filter(val => val !== undefined && val !== null && val !== '');
+    console.log(`[DEBUG] Amostra de valores da coluna "${columnName}":`, sampleValues.slice(0, 5));
+    console.log(`[DEBUG] Total de valores não vazios na amostra: ${sampleValues.length}/100`);
+    
     try {
+      console.log(`[DEBUG] Iniciando processamento com worker`);
       // Usar o worker otimizado
       const results: WorkerResult = await processDataInWorker(data, columnName);
       
       if (signal.aborted) throw new Error('Processing aborted');
+      
+      console.log(`[DEBUG] Worker concluído. Registros processados: ${results.totalProcessed}`);
+      console.log(`[DEBUG] Códigos únicos encontrados: ${Object.keys(results.frequencyMap).length}`);
+      console.log(`[DEBUG] UFs de entrega encontradas: ${results.ufEntregas.length}`);
       
       // Agora passamos apenas os dados essenciais para o componente pai
       toast({
@@ -416,13 +480,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         }
       };
       
+      console.log(`[DEBUG] Dados processados enviados para componente pai`);
       onFileUpload(processedData, columnName);
     } catch (error) {
       if (error instanceof Error && error.message === 'Processing aborted') {
         throw error; // Re-throw para ser tratado acima
       }
       
-      console.error("Erro ao processar dados:", error);
+      console.error("[DEBUG] Erro ao processar dados:", error);
       toast({
         title: "Erro ao processar dados",
         description: error instanceof Error ? error.message : "Ocorreu um erro durante o processamento",
