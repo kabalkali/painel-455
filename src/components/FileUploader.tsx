@@ -77,13 +77,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     }
   };
 
+  const preprocessSSWWeb = (content: string): string => {
+    const lines = content.split('\n');
+    // Remove a primeira linha (cabeçalho inútil) e mantém o resto
+    const processedLines = lines.slice(1);
+    // Converte delimitador ; para , para compatibilidade com Papa.parse
+    return processedLines.map(line => line.replace(/;/g, ',')).join('\n');
+  };
+
   const processFile = async (file: File) => {
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     
-    if (fileExt !== 'csv' && fileExt !== 'xlsx') {
+    if (fileExt !== 'csv' && fileExt !== 'xlsx' && fileExt !== 'sswweb') {
       toast({
         title: "Formato inválido",
-        description: "Por favor, envie apenas arquivos CSV ou XLSX.",
+        description: "Por favor, envie apenas arquivos CSV, XLSX ou SSWWEB.",
         variant: "destructive",
       });
       return;
@@ -98,7 +106,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      if (fileExt === 'csv') {
+      if (fileExt === 'csv' || fileExt === 'sswweb') {
         // Otimização para CSV: usar streaming para evitar carregamento completo na memória
         setUploadProgress(15);
         
@@ -110,10 +118,107 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
         let currentBatch: any[] = [];
         let totalRows = 0;
         
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          chunk: async (results, parser) => {
+        if (fileExt === 'sswweb') {
+          // Processar arquivo .sswweb: ler como texto, remover primeira linha e converter delimitadores
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const content = e.target?.result as string;
+            if (content && !signal.aborted) {
+              try {
+                if (content.split('\n').length < 2) {
+                  toast({
+                    title: "Arquivo inválido",
+                    description: "O arquivo .sswweb deve ter pelo menos 2 linhas.",
+                    variant: "destructive",
+                  });
+                  setIsLoading(false);
+                  return;
+                }
+                
+                const processedContent = preprocessSSWWeb(content);
+                const blob = new Blob([processedContent], { type: 'text/csv' });
+                const processedFile = new File([blob], file.name.replace('.sswweb', '.csv'), { type: 'text/csv' });
+                
+                // Agora processar como CSV normal
+                Papa.parse(processedFile, {
+                  header: true,
+                  skipEmptyLines: true,
+                  chunk: async (results, parser) => {
+                    // ... resto da lógica de chunk permanece igual
+                    parser.pause();
+                    
+                    if (signal.aborted) {
+                      parser.abort();
+                      return;
+                    }
+                    
+                    if (firstChunk) {
+                      firstChunk = false;
+                      sampleRows.push(...results.data.slice(0, 10));
+                      headers = results.meta.fields || [];
+                    }
+                    
+                    currentBatch.push(...results.data);
+                    rowsProcessed += results.data.length;
+                    totalRows += results.data.length;
+                    
+                    setUploadProgress(Math.min(30, 15 + (rowsProcessed / batchSize) * 15));
+                    setProcessingText(`Carregando dados: ${totalRows.toLocaleString()} registros`);
+                    
+                    if (currentBatch.length >= batchSize) {
+                      try {
+                        await processAndValidateData(currentBatch, headers, signal);
+                        currentBatch = [];
+                      } catch (error) {
+                        if (error instanceof Error && error.message === 'Processing aborted') {
+                          parser.abort();
+                          return;
+                        }
+                        throw error;
+                      }
+                    }
+                    
+                    parser.resume();
+                  },
+                  complete: async () => {
+                    if (currentBatch.length > 0 && !signal.aborted) {
+                      try {
+                        await processAndValidateData(currentBatch, headers, signal);
+                      } catch (error) {
+                        if (!(error instanceof Error && error.message === 'Processing aborted')) {
+                          throw error;
+                        }
+                      }
+                    }
+                    
+                    if (!signal.aborted) {
+                      setProcessingText(`Finalizado: ${totalRows.toLocaleString()} registros processados`);
+                      setUploadProgress(100);
+                      setTimeout(() => setIsLoading(false), 500);
+                    }
+                  },
+                  error: (error) => {
+                    throw new Error(`Erro ao processar SSWWEB: ${error}`);
+                  }
+                });
+              } catch (error) {
+                toast({
+                  title: "Erro ao processar arquivo SSWWEB",
+                  description: error instanceof Error ? error.message : "Erro desconhecido",
+                  variant: "destructive",
+                });
+                setIsLoading(false);
+                setUploadProgress(0);
+              }
+            }
+          };
+          reader.readAsText(file);
+        } else {
+          // Processar CSV normal
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            chunk: async (results, parser) => {
             // Pausa o parser para processar o lote atual
             parser.pause();
             
@@ -176,6 +281,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
             throw new Error(`Erro ao processar CSV: ${error}`);
           }
         });
+        }
       } else if (fileExt === 'xlsx') {
         setUploadProgress(20);
         
@@ -344,7 +450,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
           <input
             id="file-upload"
             type="file"
-            accept=".csv,.xlsx"
+            accept=".csv,.xlsx,.sswweb"
             className="hidden"
             onChange={(e) => {
               const files = e.target.files;
@@ -381,7 +487,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                 Faça upload do seu arquivo
               </h3>
               <p className="text-sm text-gray-500 text-center max-w-md mb-4">
-                Arraste e solte seu arquivo CSV ou XLSX aqui, ou clique para selecionar
+                Arraste e solte seu arquivo CSV, XLSX ou SSWWEB aqui, ou clique para selecionar
               </p>
               <Button variant="default" className="bg-blue-500 hover:bg-blue-600">
                 Selecionar Arquivo
