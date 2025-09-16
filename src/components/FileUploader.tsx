@@ -81,14 +81,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     const lines = content.split('\n');
     // Remove a primeira linha (cabeçalho inútil) e mantém o resto
     const processedLines = lines.slice(1);
-    // Adiciona uma coluna vazia no início para compensar o deslocamento
-    // e converte delimitador ; para , para compatibilidade com Papa.parse
-    return processedLines.map(line => {
-      if (line.trim()) {
-        return ',' + line.replace(/;/g, ',');
-      }
-      return line;
-    }).join('\n');
+    // Converte delimitador ; para , para compatibilidade com Papa.parse
+    return processedLines.map(line => line.replace(/;/g, ',')).join('\n');
   };
 
   const processFile = async (file: File) => {
