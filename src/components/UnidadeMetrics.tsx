@@ -239,7 +239,7 @@ const UnidadeMetrics: React.FC<UnidadeMetricsProps> = ({
       return {
         unidade,
         count: atrasadosCount,
-        total: atrasadosCount,
+        total: totalGeral,
         percentage: percentage
       };
     }
