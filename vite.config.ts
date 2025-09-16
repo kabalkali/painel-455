@@ -8,6 +8,24 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    hmr: {
+      overlay: true,
+    },
+    watch: {
+      usePolling: true,
+      interval: 100,
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+    sourcemap: mode === 'development',
+  },
+  optimizeDeps: {
+    force: true,
   },
   plugins: [
     react(),
@@ -18,5 +36,8 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   },
 }));
