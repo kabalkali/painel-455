@@ -145,7 +145,7 @@ const Index: React.FC = () => {
 
   // Função para calcular dados filtrados de Sem Prazo
   const getFilteredSemPrazoData = () => {
-    if (!semPrazoData || !rawData) return { count: 0, percentage: 0 };
+    if (!rawData) return { count: 0, percentage: 0 };
     
     const { full } = rawData;
     if (!full || full.length === 0) return { count: 0, percentage: 0 };
