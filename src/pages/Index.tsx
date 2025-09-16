@@ -145,76 +145,33 @@ const Index: React.FC = () => {
 
   // Função para calcular dados filtrados de Sem Prazo
   const getFilteredSemPrazoData = () => {
-    if (!rawData) return { count: 0, percentage: 0 };
-    
-    const { full } = rawData;
-    if (!full || full.length === 0) return { count: 0, percentage: 0 };
+    if (!semPrazoData) return { count: 0, percentage: 0 };
 
-    const firstRow = full[0];
-    const keys = Object.keys(firstRow);
-    const ufKey = keys[50];
-    const unidadeKey = keys[52];
-    const cidadeKey = keys[49];
-    const previsaoEntregaKey = keys[97];
-    const dataUltimoManifestoKey = keys[85];
-
-    if (!ufKey || !unidadeKey || !cidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) {
-      return { count: 0, percentage: 0 };
+    // Se não há filtros aplicados, usar dados originais
+    if (selectedUf === 'todas' && selectedUnidades.includes('todas')) {
+      return {
+        count: semPrazoData.count,
+        percentage: semPrazoData.percentage
+      };
     }
 
-    // Filtrar dados com base na UF e unidades selecionadas
-    const filteredData = full.filter((item: any) => {
-      const itemUf = item[ufKey];
-      const itemUnidade = item[unidadeKey];
-      
-      const matchesUf = selectedUf === 'todas' || itemUf === selectedUf;
-      const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(itemUnidade);
-      
-      return matchesUf && matchesUnidade;
-    });
+    // Aplicar filtros nos dados das unidades
+    let filteredCount = 0;
 
-    let totalValidCount = 0;
-    let atrasadosCount = 0;
-
-    for (const row of filteredData) {
-      const cidade = String(row[cidadeKey] || "").trim();
-      const unidade = String(row[unidadeKey] || "").trim();
-      const previsaoEntrega = row[previsaoEntregaKey];
-      const dataUltimoManifesto = row[dataUltimoManifestoKey];
-      
-      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
-      
-      const prazoEsperado = getPrazoByCidade(cidade, unidade);
-      if (prazoEsperado === null) continue;
-      
-      totalValidCount++;
-      
-      const parseDate = (dateStr: string) => {
-        const cleanStr = String(dateStr).trim();
-        if (cleanStr.includes('/')) {
-          const [day, month, year] = cleanStr.split('/').map(Number);
-          return new Date(year, month - 1, day);
+    if (semPrazoData.unidades) {
+      for (const unidadeData of semPrazoData.unidades) {
+        const matchesUf = selectedUf === 'todas' || unidadeData.uf === selectedUf;
+        const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(unidadeData.unidade);
+        
+        if (matchesUf && matchesUnidade) {
+          filteredCount += unidadeData.total;
         }
-        return new Date(cleanStr);
-      };
-      
-      const previsaoDate = parseDate(previsaoEntrega);
-      const manifestoDate = parseDate(dataUltimoManifesto);
-      
-      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
-      
-      const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diferencaDias > prazoEsperado) {
-        atrasadosCount++;
       }
     }
-    
-    const percentage = totalValidCount > 0 ? (atrasadosCount / totalValidCount) * 100 : 0;
-    
+
     return {
-      count: atrasadosCount,
-      percentage: percentage
+      count: filteredCount,
+      percentage: semPrazoData.percentage
     };
   };
   const processFileData = (data: ProcessedData, columnName: string) => {
