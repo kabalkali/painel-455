@@ -143,37 +143,82 @@ const Index: React.FC = () => {
     }>;
   } | null>(null);
 
-  // Função para calcular dados filtrados de Sem Prazo
-  const getFilteredSemPrazoData = () => {
-    if (!semPrazoData) return { count: 0, percentage: 0 };
-
-    // Se não há filtros aplicados, usar dados originais
-    if (selectedUf === 'todas' && selectedUnidades.includes('todas')) {
-      return {
-        count: semPrazoData.count,
-        percentage: semPrazoData.percentage
-      };
+  // Dados de Sem Prazo calculados dinamicamente com filtros
+  const semPrazoCalculatedData = useMemo(() => {
+    if (!rawData || !rawData.full) {
+      return { count: 0, percentage: 0 };
     }
 
-    // Aplicar filtros nos dados das unidades
-    let filteredCount = 0;
+    const { full } = rawData;
+    if (full.length === 0) return { count: 0, percentage: 0 };
 
-    if (semPrazoData.unidades) {
-      for (const unidadeData of semPrazoData.unidades) {
-        const matchesUf = selectedUf === 'todas' || unidadeData.uf === selectedUf;
-        const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(unidadeData.unidade);
-        
-        if (matchesUf && matchesUnidade) {
-          filteredCount += unidadeData.total;
+    const firstRow = full[0];
+    const keys = Object.keys(firstRow);
+    const cidadeKey = keys[49];
+    const unidadeKey = keys[52];
+    const ufKey = keys[50];
+    const previsaoEntregaKey = keys[97];
+    const dataUltimoManifestoKey = keys[85];
+
+    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) {
+      return { count: 0, percentage: 0 };
+    }
+
+    // Filtrar dados com base na UF e unidades selecionadas
+    const filteredData = full.filter((item: any) => {
+      const itemUf = item[ufKey];
+      const itemUnidade = item[unidadeKey];
+      
+      const matchesUf = selectedUf === 'todas' || itemUf === selectedUf;
+      const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(itemUnidade);
+      
+      return matchesUf && matchesUnidade;
+    });
+
+    let totalValidCount = 0;
+    let atrasadosCount = 0;
+
+    for (const row of filteredData) {
+      const cidade = String(row[cidadeKey] || "").trim();
+      const unidade = String(row[unidadeKey] || "").trim();
+      const previsaoEntrega = row[previsaoEntregaKey];
+      const dataUltimoManifesto = row[dataUltimoManifestoKey];
+      
+      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
+      
+      const prazoEsperado = getPrazoByCidade(cidade, unidade);
+      if (prazoEsperado === null) continue;
+      
+      totalValidCount++;
+      
+      const parseDate = (dateStr: string) => {
+        const cleanStr = String(dateStr).trim();
+        if (cleanStr.includes('/')) {
+          const [day, month, year] = cleanStr.split('/').map(Number);
+          return new Date(year, month - 1, day);
         }
+        return new Date(cleanStr);
+      };
+      
+      const previsaoDate = parseDate(previsaoEntrega);
+      const manifestoDate = parseDate(dataUltimoManifesto);
+      
+      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
+      
+      const diferencaDias = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diferencaDias > prazoEsperado) {
+        atrasadosCount++;
       }
     }
-
+    
+    const percentage = totalValidCount > 0 ? (atrasadosCount / totalValidCount) * 100 : 0;
+    
     return {
-      count: filteredCount,
-      percentage: semPrazoData.percentage
+      count: atrasadosCount,
+      percentage: percentage
     };
-  };
+  }, [rawData, selectedUf, selectedUnidades]);
   const processFileData = (data: ProcessedData, columnName: string) => {
     setIsLoading(true);
     setRawData(data);
@@ -1680,10 +1725,10 @@ const Index: React.FC = () => {
                       <CardContent className="pt-4">
                         <div className="flex justify-between items-center">
                           <div className="text-3xl font-bold text-purple-600">
-                            {getFilteredSemPrazoData().count}
+                            {semPrazoCalculatedData.count}
                           </div>
                           <div className="text-xl font-semibold px-3 py-1 bg-gradient-to-r from-purple-400 to-violet-500 text-white rounded-full shadow-sm">
-                            {getFilteredSemPrazoData().percentage.toFixed(1)}%
+                            {semPrazoCalculatedData.percentage.toFixed(1)}%
                           </div>
                           <div className="bg-purple-50 p-3 rounded-full">
                             <Clock className="h-8 w-8 text-purple-500" />
