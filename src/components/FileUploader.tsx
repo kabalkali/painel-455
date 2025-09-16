@@ -81,8 +81,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
     const lines = content.split('\n');
     // Remove a primeira linha (cabeçalho inútil) e mantém o resto
     const processedLines = lines.slice(1);
-    // Converte delimitador ; para , para compatibilidade com Papa.parse
-    return processedLines.map(line => line.replace(/;/g, ',')).join('\n');
+    // Mantém os pontos e vírgulas como delimitadores para Papa.parse
+    return processedLines.join('\n');
   };
 
   const processFile = async (file: File) => {
@@ -139,10 +139,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileUpload }) => {
                 const blob = new Blob([processedContent], { type: 'text/csv' });
                 const processedFile = new File([blob], file.name.replace('.sswweb', '.csv'), { type: 'text/csv' });
                 
-                // Agora processar como CSV normal
+                // Agora processar como CSV com delimitador de ponto e vírgula
                 Papa.parse(processedFile, {
                   header: true,
                   skipEmptyLines: true,
+                  delimiter: ';',
                   chunk: async (results, parser) => {
                     // ... resto da lógica de chunk permanece igual
                     parser.pause();
