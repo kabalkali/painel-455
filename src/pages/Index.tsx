@@ -154,75 +154,106 @@ const Index: React.FC = () => {
     const { full } = rawData;
     if (full.length === 0) return { count: 0, percentage: 0 };
 
-    const firstRow = full[0];
-    const keys = Object.keys(firstRow);
-    const cidadeKey = keys[49];
-    const unidadeKey = keys[52];
-    const ufKey = keys[50];
-    const previsaoEntregaKey = keys[97];
-    const dataUltimoManifestoKey = keys[85];
+    // Função para calcular sem prazo para uma unidade específica (mesmo código do UnidadeMetrics)
+    const calculateSemPrazoForUnidade = (unidade: string) => {
+      const firstRow = full[0];
+      const keys = Object.keys(firstRow);
+      
+      const findKey = (...terms: string[]) => {
+        return keys.find(key => terms.every(term => key.toLowerCase().includes(term.toLowerCase())));
+      };
 
-    if (!cidadeKey || !unidadeKey || !previsaoEntregaKey || !dataUltimoManifestoKey) {
-      return { count: 0, percentage: 0 };
-    }
+      const previsaoEntregaKey = findKey('previsao', 'entrega') || keys[97]; // CV
+      const dataUltimoManifestoKey = findKey('data', 'ultimo', 'manifesto') || keys[85]; // CI
+      const cidadeEntregaKey = findKey('cidade', 'entrega') || keys[49]; // AX
+      const unidadeReceptoraKey = findKey('unidade', 'receptora') || keys[52]; // BA
+      const ufKeyResolved = findKey('uf') || keys[50];
 
-    // Filtrar dados com base na UF e unidades selecionadas
-    const filteredData = full.filter((item: any) => {
-      const itemUf = item[ufKey];
-      const itemUnidade = item[unidadeKey];
-      
-      const matchesUf = selectedUf === 'todas' || itemUf === selectedUf;
-      const matchesUnidade = selectedUnidades.includes('todas') || selectedUnidades.includes(itemUnidade);
-      
-      return matchesUf && matchesUnidade;
-    });
+      // Base total: todos os CTRCs da unidade
+      const totalGeralData = full.filter((item: any) => {
+        const matchesUf = selectedUf === 'todas' || item[ufKeyResolved] === selectedUf;
+        const matchesUnidade = item[unidadeReceptoraKey] === unidade;
+        return matchesUf && matchesUnidade;
+      });
 
-    let totalValidCount = 0;
-    let atrasadosCount = 0;
+      // Filtrar dados com previsão e manifesto válidos
+      const validData = totalGeralData.filter((item: any) => {
+        const previsaoEntrega = item[previsaoEntregaKey];
+        const dataUltimoManifesto = item[dataUltimoManifestoKey];
+        return previsaoEntrega && dataUltimoManifesto;
+      });
 
-    for (const row of filteredData) {
-      const cidade = String(row[cidadeKey] || "").trim();
-      const unidade = String(row[unidadeKey] || "").trim();
-      const previsaoEntrega = row[previsaoEntregaKey];
-      const dataUltimoManifesto = row[dataUltimoManifestoKey];
-      
-      if (!cidade || !unidade || !previsaoEntrega || !dataUltimoManifesto) continue;
-      
-      const prazoEsperado = getPrazoByCidade(cidade, unidade);
-      if (prazoEsperado === null) continue;
-      
-      totalValidCount++;
-      
-      const parseDate = (dateStr: string) => {
+      // Parse de data flexível
+      const parseFlexibleDate = (dateStr: string): Date | null => {
+        if (!dateStr) return null;
         const cleanStr = String(dateStr).trim();
+        
+        // Detectar formato da data
         if (cleanStr.includes('/')) {
           const [day, month, year] = cleanStr.split('/').map(Number);
           return new Date(year, month - 1, day);
+        } else if (cleanStr.includes('-')) {
+          const parts = cleanStr.split('-');
+          if (parts.length === 3) {
+            const [year, month, day] = parts.map(Number);
+            return new Date(year, month - 1, day);
+          }
         }
-        return new Date(cleanStr);
+        return null;
       };
+
+      // Calcular apenas os pedidos atrasados (sem prazo)
+      const atrasadosCount = validData.filter((item: any) => {
+        const previsaoDate = parseFlexibleDate(item[previsaoEntregaKey]);
+        const manifestoDate = parseFlexibleDate(item[dataUltimoManifestoKey]);
+        const cidade = item[cidadeEntregaKey] || 'N/A';
+        const unidadeReceptora = item[unidadeReceptoraKey] || unidade;
+
+        if (previsaoDate && manifestoDate) {
+          const delta = Math.floor((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
+          const diasCalculados = Math.abs(delta);
+          
+          // Buscar prazo ideal da cidade no banco de dados
+          const prazoIdeal = getPrazoByCidade(cidade, unidadeReceptora);
+          if (prazoIdeal !== null) {
+            // Se chegou com menos dias que o prazo ideal ou depois da previsão, está atrasado
+            if (delta <= 0 || diasCalculados < prazoIdeal) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }).length;
       
-      const previsaoDate = parseDate(previsaoEntrega);
-      const manifestoDate = parseDate(dataUltimoManifesto);
+      const totalGeral = totalGeralData.length;
       
-      if (isNaN(previsaoDate.getTime()) || isNaN(manifestoDate.getTime())) continue;
-      
-      const delta = Math.ceil((previsaoDate.getTime() - manifestoDate.getTime()) / (1000 * 60 * 60 * 24));
-      const diasCalculados = Math.abs(delta);
-      
-      // Se chegou com menos dias que o prazo ideal ou depois da previsão, está atrasado
-      if (delta <= 0 || diasCalculados < prazoEsperado) {
-        atrasadosCount++;
-      }
-    }
+      return {
+        count: atrasadosCount,
+        total: totalGeral
+      };
+    };
+
+    // Obter unidades para calcular
+    const unidadesToCalculate = selectedUnidades.includes('todas') ? unidadesReceptoras : selectedUnidades;
     
-    const percentage = totalValidCount > 0 ? (atrasadosCount / totalValidCount) * 100 : 0;
+    let totalSemPrazoCount = 0;
+    let totalGeralCount = 0;
+
+    // Somar resultados de todas as unidades
+    for (const unidade of unidadesToCalculate) {
+      const result = calculateSemPrazoForUnidade(unidade);
+      totalSemPrazoCount += result.count;
+      totalGeralCount += result.total;
+    }
+
+    const percentage = totalGeralCount > 0 ? (totalSemPrazoCount / totalGeralCount) * 100 : 0;
     
     return {
-      count: atrasadosCount,
+      count: totalSemPrazoCount,
       percentage: percentage
     };
-  }, [rawData, selectedUf, selectedUnidades]);
+  }, [rawData, selectedUf, selectedUnidades, getPrazoByCidade, unidadesReceptoras]);
+
   const processFileData = (data: ProcessedData, columnName: string) => {
     setIsLoading(true);
     setRawData(data);
